@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from commonnexus import Nexus
@@ -45,7 +47,7 @@ from commonnexus.tokenizer import TokenType
                 lambda n: str(n.TREES.commands['STUFF'][0]) == '(a[&comment]:1,b:2)c:3'),
         (
                 '#NEXUS begin trees; tree t = (a[&comment]:1,b:2)c:3; end trees;',
-                lambda n: [nn.name for nn in n.TREES.TREE.newick.node.walk() if nn.is_leaf] == ['a', 'b']),
+                lambda n: [nn.name for nn in n.TREES.TREE.newick_node.walk() if nn.is_leaf] == ['a', 'b']),
         # Test on "real" Nexus files:
         (
                 'ape_random.trees',
@@ -83,6 +85,40 @@ def test_Nexus_modification():
     nex.remove_block(nex.BLOCK)
     with pytest.raises(AttributeError):
         _ = nex.BLOCK
+
+
+def test_Nexus_replace_block():
+    nex = Nexus("""#nexus
+    BEGIN TAXA;
+        TAXLABELS Scarabaeus Drosophila Aranaeus;
+    END;
+    BEGIN Trees;
+        TRANSLATE beetle Scarabaeus, fly Drosophila, spider Aranaeus;
+        TREE tree1 = ((beetle,fly),spider);
+        TREE tree2 = ((1,2),3);
+        TREE tree3 = ((Scarabaeus,Drosophila),Aranaeus);
+    END;""")
+    trees = []
+    for tree in nex.TREES.commands['TREE']:
+        trees.append(nex.TREES.translated(tree).newick)
+    nex.replace_block(
+        nex.TREES, [('TREE', 'tree{} = {}'.format(i + 1, n)) for i, n in enumerate(trees)])
+    assert str(nex) == """#NEXUS
+    BEGIN TAXA;
+        TAXLABELS Scarabaeus Drosophila Aranaeus;
+    END;
+    BEGIN Trees;
+TREE tree1 = ((Scarabaeus,Drosophila),Aranaeus);
+TREE tree2 = ((Scarabaeus,Drosophila),Aranaeus);
+TREE tree3 = ((Scarabaeus,Drosophila),Aranaeus);
+    END;"""
+
+
+def test_Nexus_validate(caplog):
+    nex = Nexus('#NEXUS begin trees; tree t = (a,b)c; translate 1 a, 2 b, 3 c; end;')
+    assert not nex.validate(logging.getLogger(__name__))
+    assert len(caplog.records) == 1
+
 
 """
 #NEXUS

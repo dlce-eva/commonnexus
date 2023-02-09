@@ -11,7 +11,11 @@ NEXUS = '#NEXUS'
 
 class Command(tuple):
     """
-    A Command is a tuple of tokens, ending with a semicolon token.
+    From the specification:
+
+        A command is a collection of tokens terminated by a semicolon. Commands cannot contain
+        semicolons, except as terminators, unless the semicolons are contained within a comment
+        or within a quoted token consisting of more than one text character.
     """
     @cached_property
     def name(self):
@@ -68,6 +72,10 @@ class Nexus(list):
                  s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
                  block_implementations=None):
         self.trailing_whitespace = []
+        #
+        # FIXME: We must recurse into subclasses of subclasses to get aliases such as Data for
+        # Characters!
+        #
         self.block_implementations = {cls.__name__.upper(): cls for cls in Block.__subclasses__()}
         self.block_implementations.update(block_implementations or {})
         s = s or NEXUS
@@ -80,7 +88,7 @@ class Nexus(list):
             for token in itertools.dropwhile(
                     lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s)):
                 if not nexus:
-                    assert token.type == TokenType.WORD and token.text == NEXUS
+                    assert token.type == TokenType.WORD and token.text.upper() == NEXUS
                     nexus = True
                 else:
                     tokens.append(token)
@@ -116,12 +124,23 @@ class Nexus(list):
                 block.append(command)
                 # Look up a suitable Block implementation.
                 name = get_name(block[0].iter_payload_tokens())
-                yield self.block_implementations.get(name, Block)(block)
+                yield self.block_implementations.get(name, Block)(self, block)
                 block = None
             elif command.is_beginblock:
                 block = [command]
             elif block is not None:
                 block.append(command)
+
+    def validate(self, log=None):
+        valid = True
+        for block in self.iter_blocks():
+            #
+            # FIXME: we can do a lot of validation here! If block.__commands__ is a list, there is
+            # some fixed order between commands.
+            # If Payload.__multivalued__ == False, only one command instance is allowed, ...
+            #
+            valid = valid and block.validate(log=log)
+        return valid
 
     @property
     def blocks(self):
@@ -140,6 +159,17 @@ class Nexus(list):
             all_commands.append(Command.from_name_and_payload(n, payload))
         all_commands.append(Command.from_name_and_payload('END'))
         self.extend(all_commands)
+
+    def replace_block(self, block, cmds):
+        for i, cmd in enumerate(self):
+            if cmd is block[0]:
+                break
+        else:
+            raise ValueError('Block not found')
+        for cmd in block[1:-1]:
+            self.remove(cmd)
+        for n, payload in reversed(cmds):
+            self.insert(i + 1, Command.from_name_and_payload(n, payload))
 
     def append_command(self, block, name, payload=None):
         self.insert(self.index(block[-1]), Command.from_name_and_payload(name, payload))

@@ -9,11 +9,19 @@ class Payload:
     """
     The payload of a Nexus command, i.e. the stuff between command name and final ";".
     """
+    __multivalued__ = False
+
     def __init__(self, tokens):
-        self.tokens = tokens
+        self._tokens = tokens
+
+    def format(self, *args, **kw):
+        """
+        Derived classes may provide functionality to format command data as correct Nexus payload.
+        """
+        raise NotImplementedError()
 
     def __str__(self):
-        return ''.join(str(t) for t in self.tokens)
+        return ''.join(str(t) for t in self._tokens)
 
     @property
     def lines(self):
@@ -26,6 +34,16 @@ class Block(tuple):
     """
     # Custom `Payload` subclasses can be registered for command names:
     __commands__ = {}
+
+    def __new__ (cls, nexus, cmds):
+        return super().__new__(cls, tuple(cmds))
+
+    def __init__(self, nexus, cmds):
+        self.nexus = nexus
+
+    @cached_property
+    def payload_map(self):
+        return {cls.__name__.upper(): cls for cls in self.__commands__}
 
     def __getattribute__(self, name):
         if name.isupper():
@@ -44,6 +62,11 @@ class Block(tuple):
         res = collections.defaultdict(list)
         for cmd in self:
             if not (cmd.is_beginblock or cmd.is_endblock):
-                cls = self.__commands__.get(cmd.name, Payload)
+                cls = self.payload_map.get(cmd.name, Payload)
                 res[cmd.name].append(cls(tuple(cmd.iter_payload_tokens())))
         return res
+
+    def validate(self, log=None):
+        if log:
+            log.info('{} block with {} commands'.format(self.name, len(self) - 2))
+        return True
