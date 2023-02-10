@@ -165,7 +165,7 @@ class Nexus(list):
             if cmd is block[0]:
                 break
         else:
-            raise ValueError('Block not found')
+            raise ValueError('Block not found')  # pragma: no cover
         for cmd in block[1:-1]:
             self.remove(cmd)
         for n, payload in reversed(cmds):

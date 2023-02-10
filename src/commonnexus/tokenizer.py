@@ -17,7 +17,9 @@ import enum
 import itertools
 import dataclasses
 
-__all__ = ['TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word']
+__all__ = [
+    'TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word',
+    'iter_delimited', 'iter_lines']
 
 QUOTE = "'"
 COMMENT = {'[': 1, ']': -1}
@@ -56,6 +58,10 @@ class Token:
     @property
     def is_whitespace(self):
         return self.type == TokenType.WHITESPACE
+
+    @property
+    def is_newline(self):
+        return self.is_whitespace and any(c in self.text for c in '\r\n')
 
     @property
     def is_comment(self):
@@ -239,3 +245,33 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
                 yield token
     if word:
         yield Word(word)
+
+
+def iter_lines(tokens):
+    line = []
+    for t in tokens:
+        if t.is_newline:
+            yield line
+            line = []
+        else:
+            line.append(t)
+    if line:
+        yield line
+
+
+def iter_delimited(start, words_and_punctuation, delimiter='"', allow_single_word=False):
+    startchar = delimiter[0]
+    endchar = start if len(delimiter) == 1 else delimiter[1]
+
+    if isinstance(start, str) and start != startchar:
+        if allow_single_word:
+            yield start
+            return
+        else:
+            raise ValueError()
+    else:
+        assert getattr(start, 'text', start) == startchar
+        w = next(words_and_punctuation)
+        while not (isinstance(w, Token) and w.text == endchar):
+            yield w
+            w = next(words_and_punctuation)

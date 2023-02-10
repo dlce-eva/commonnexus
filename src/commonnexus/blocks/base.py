@@ -18,7 +18,7 @@ class Payload:
         """
         Derived classes may provide functionality to format command data as correct Nexus payload.
         """
-        raise NotImplementedError()
+        raise NotImplementedError()  # pragma: no cover
 
     def __str__(self):
         return ''.join(str(t) for t in self._tokens)

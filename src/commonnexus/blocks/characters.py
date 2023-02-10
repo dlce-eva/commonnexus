@@ -1,5 +1,11 @@
+import collections
+import types
+
 from .base import Block, Payload
-from commonnexus.tokenizer import iter_words_and_punctuation
+from commonnexus.tokenizer import iter_words_and_punctuation, Token, iter_delimited, iter_lines
+from .taxa import Taxlabels
+
+GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
 
 
 class Eliminate(Payload):
@@ -17,6 +23,7 @@ class Eliminate(Payload):
     tells the program to skip over characters 4 through 100 in reading the matrix. Character-set
     names are not allowed in the character list. This command does not affect character numbers.
     """
+
     def __init__(self, tokens):
         super().__init__(tokens)
 
@@ -38,6 +45,7 @@ class Dimensions(Payload):
     :ivar typing.Optional[int] ntax:
     :ivar int nchar:
     """
+
     def __init__(self, tokens):
         super().__init__(tokens)
         self.newtaxa = False
@@ -62,7 +70,7 @@ class Dimensions(Payload):
                     self.nchar = int(next(words))
             except StopIteration:
                 break
-        assert self.nchar and not ((not self.newtaxa) or self.ntax)
+        assert self.nchar and ((not self.newtaxa) or self.ntax)
 
 
 class Format(Payload):
@@ -84,50 +92,47 @@ class Format(Payload):
        data and other information with continuous values can be housed in matrices of
        DATATYPE=CONTINUOUS. These DATATYPES are described in detail, with examples, at the end of
        the description of the CHARACTERS block.
-    2. RESPECTCASE. By default, information in a MATRIX may be entered in uppercase,
-       lowercase, or a mixture of uppercase and lowercase. If RESPECTCASE is requested,
-       case is considered significant in SYMBOLS, MISSING, GAP, and MATCHCHAR subcom-
-       mands and in subsequent references to states. For example, if RESPECTCASE is invoked, then
-       SYMBOLS="A a B b" designates four states whose symbols are A, a, B, and b, which can then
-       each be used in the MATRIX command and elsewhere. If RESPECTCASE is not invoked, then A and a
-       are considered homonymous state symbols. This subcommand must appear be-
-       fore the SYMBOLS subcommand. This subcommand is not applicable to DATATYPE = DNA, RNA,
-       NUCLEOTIDE, PROTEIN, and CONTINUOUS.
+    2. RESPECTCASE. By default, information in a MATRIX may be entered in uppercase, lowercase, or
+       a mixture of uppercase and lowercase. If RESPECTCASE is requested, case is considered
+       significant in SYMBOLS, MISSING, GAP, and MATCHCHAR subcommands and in subsequent references
+       to states. For example, if RESPECTCASE is invoked, then SYMBOLS="A a B b" designates four
+       states whose symbols are A, a, B, and b, which can then each be used in the MATRIX command
+       and elsewhere. If RESPECTCASE is not invoked, then A and a are considered homonymous state
+       symbols. This subcommand must appear before the SYMBOLS subcommand. This subcommand is not
+       applicable to DATATYPE = DNA, RNA, NUCLEOTIDE, PROTEIN, and CONTINUOUS.
     3. MISSING. This subcommand declares the symbol that designates missing data.
-       The default is "?". For example, MISSING =X defines an X to represent missing
+       The default is "?". For example, MISSING=X defines an X to represent missing
        data. Whitespace is illegal as a missing data symbol, as are the following symbols:
        ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
-    4. GAP. This subcommand declares the symbol that designates a data gap (e.g.,
-       base absent in DNA sequence because of deletion or an inapplicable character in
-       morphological data). There is no default gap symbol; a gap symbol must be defined
-       by the GAP subcommand before any gaps can be entered into the matrix. For exam-
-       ple, GAP = - defines a hyphen to represent a gap. Whitespace is illegal as a gap sym-
-       bol, as are the following symbols:  ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
-    5. SYMBOLS. This subcommand specifies the symbols and their order for character
-       states used in the file (including in the MATRIX command). For example, SYMBOLS="0
-       1 2 3 4 5 6 7 " designates numbers 0 through 7 as acceptable symbols in a ma-
-       trix. The SYMBOLS subcommand is not allowed for DATATYPE=CONTINUOUS. The
-       default symbols list differs from one DATATYPE to another, as described under
-       state symbol in the Appendix. Whitespace is not needed between elements: SYM-
-       BOLS="012" is equivalent to SYMBOLS="0 1 2". For STANDARD DATATYPES, a SYMBOLS
-       subcommand will replace the default symbols list of "0 1". For DNA, RNA, NUCLE-
-       OTIDE, and PROTEIN DATATYPES, a SYMBOLS subcommand will not replace the default
-       symbols list but will add character-state symbols to the SYMBOLS list. The NEXUS
-       standard does not define the position of these additional symbols within the SYM-
-       BOLS list. (These additional symbols will be inserted at the beginning of the SYMBOLS
-       list in PAUP and at the end in MacClade. MacClade will accept additional symbols
-       for PROTEIN but not DNA, RNA, and NUCLEOTIDE matrices.)
-    6. EQUATE. This subcommand allows one to define symbols to represent one matrix
-       entry. For example, EQUATE="E=(012)" means that each occurrence of E in the MA-
-       TRIX command will be interpreted as meaning states 0, 1, and 2. The equate
-       symbols cannot be ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^ or any or the currently defined
-       MISSING, GAP, MATCHCHAR, or state SYMBOLS. Case is significant in equate symbols.
-       That is, MISSING=? EQUATE="E=(012)e=?" means that E will be interpreted as
-       0, 1, and 2 and e will be interpreted as missing data.
-    7. MATCHCHAR. This subcommand defines a matching character symbol. If this sub-
-       command is included, then a matching character symbol in the MATRIX indicates
-       that the states are equivalent to the states possessed by the first taxon listed in the
-       matrix for that character. In the following matrix, the sequence for taxon 2 is GACTTTC:
+    4. GAP. This subcommand declares the symbol that designates a data gap (e.g., base absent in
+       DNA sequence because of deletion or an inapplicable character in morphological data). There
+       is no default gap symbol; a gap symbol must be defined by the GAP subcommand before any gaps
+       can be entered into the matrix. For example, GAP=- defines a hyphen to represent a gap.
+       Whitespace is illegal as a gap symbol, as are the following symbols:
+       ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
+    5. SYMBOLS. This subcommand specifies the symbols and their order for character states used in
+       the file (including in the MATRIX command). For example, SYMBOLS="0 1 2 3 4 5 6 7" designates
+       numbers 0 through 7 as acceptable symbols in a matrix. The SYMBOLS subcommand is not allowed
+       for DATATYPE=CONTINUOUS. The default symbols list differs from one DATATYPE to another, as
+       described under state symbol in the Appendix. Whitespace is not needed between elements:
+       SYMBOLS="012" is equivalent to SYMBOLS="0 1 2". For STANDARD DATATYPES, a SYMBOLS subcommand
+       will replace the default symbols list of "0 1". For DNA, RNA, NUCLEOTIDE, and PROTEIN
+       DATATYPES, a SYMBOLS subcommand will not replace the default symbols list but will add
+       character-state symbols to the SYMBOLS list. The NEXUS standard does not define the position
+       of these additional symbols within the SYMBOLS list. (These additional symbols will be
+       inserted at the beginning of the SYMBOLS list in PAUP and at the end in MacClade. MacClade
+       will accept additional symbols for PROTEIN but not DNA, RNA, and NUCLEOTIDE matrices.)
+    6. EQUATE. This subcommand allows one to define symbols to represent one matrix entry. For
+       example, EQUATE="E=(012)" means that each occurrence of E in the MATRIX command will be
+       interpreted as meaning states 0, 1, and 2. The equate symbols cannot be
+       ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^ or any or the currently defined MISSING, GAP,
+       MATCHCHAR, or state SYMBOLS. Case is significant in equate symbols. That is, MISSING=?
+       EQUATE="E=(012)e=?" means that E will be interpreted as 0, 1, and 2 and e will be
+       interpreted as missing data.
+    7. MATCHCHAR. This subcommand defines a matching character symbol. If this subcommand is
+       included, then a matching character symbol in the MATRIX indicates that the states are
+       equivalent to the states possessed by the first taxon listed in the matrix for that
+       character. In the following matrix, the sequence for taxon 2 is GACTTTC:
 
        .. code-block::
 
@@ -142,29 +147,28 @@ class Format(Payload):
 
        Whitespace is illegal as a matching character symbol, as are the following symbols:
         ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
-    8. [No] LABELS. This subcommand declares whether taxon or character labels are
-       to appear on the left side of the matrix. By default, they should appear. If NOLABELS
-       is used, then no labels appear, but then all currently defined taxa must be included in
-       the MATRIX in the order in which they were originally defined.
-    9. TRANSPOSE. This subcommand indicates that the MATRIX is in transposed for-
-       mat, with each row of the matrix representing the information from one character
-       and each column representing the information from one taxon. The following is an
-       example of a TRANSPOSEd MATRIX:
+    8. [NO]LABELS. This subcommand declares whether taxon or character labels are to appear on the
+       left side of the matrix. By default, they should appear. If NOLABELS is used, then no labels
+       appear, but then all currently defined taxa must be included in the MATRIX in the order in
+       which they were originally defined.
+    9. TRANSPOSE. This subcommand indicates that the MATRIX is in transposed format, with each row
+       of the matrix representing the information from one character and each column representing
+       the information from one taxon. The following is an example of a TRANSPOSEd MATRIX:
 
        .. code-block::
 
             MATRIX
                 character_1 101101
                 character_2 011100
-                character_3 011110 ;
+                character_3 011110;
 
-    10. INTERLEAVE. This subcommand indicates that the MATRIX is in interleaved
-        format, i.e., it is broken up into sections. If the data are not transposed, then each sec-
-        tion contains the information for some of the characters for all taxa. For example, the
-        first section might contain data for characters 1-50 for all taxa, the second section
-        contains data for characters 51-100, etc. Taxa in each section must occur in the
-        same order. This format is especially useful for molecular sequence data, where the
-        number of characters can be large. A small interleaved matrix follows:
+    10. INTERLEAVE. This subcommand indicates that the MATRIX is in interleaved format, i.e., it is
+        broken up into sections. If the data are not transposed, then each section contains the
+        information for some of the characters for all taxa. For example, the first section might
+        contain data for characters 1-50 for all taxa, the second section contains data for
+        characters 51-100, etc. Taxa in each section must occur in the same order. This format is
+        especially useful for molecular sequence data, where the number of characters can be large.
+        A small interleaved matrix follows:
 
         .. code-block::
 
@@ -216,7 +220,7 @@ class Format(Payload):
         e.g., (A:2 B:3); when STATESFORMAT=FREQUENCY, the frequencies of various ob-
         served states are indicated, e.g., (A:0.40 B:0.60). The STATESFORMAT command may
         also be used for continuous data, for which the default is STATESFORMAT=INDIVIDUALS.
-    13. [No] TOKENS. This subcommand specifies whether data matrix entries are
+    13. [NO]TOKENS. This subcommand specifies whether data matrix entries are
         single symbols or whether they can be tokens. If TOKENS, then the data values must
         be full NEXUS tokens, separated by whitespace or punctuation as appropriate, as in
         the following example:
@@ -240,6 +244,20 @@ class Format(Payload):
         DATATYPES DNA, RNA, and NUCLEOTIDE. If TOKENS is invoked, the standard three-
         letter amino acid abbreviations can be used with DATATYPE = PROTEIN and defined
         state names can be used for DATATYPE=STANDARD.
+
+    :ivar str datatype:
+    :ivar bool respectcase:
+    :ivar str missing:
+    :ivar typing.Optional[str] gap:
+    :ivar typing.Set[str] symbols:
+    :ivar typing.Dict[str, str] equate:
+    :ivar typing.Optional[str] matchchar:
+    :ivar typing.Optional[bool] labels:
+    :ivar bool transpose:
+    :ivar bool interleave:
+    :ivar typing.List[str] items:
+    :ivar typing.Optional[str] statesformat:
+    :ivar typing.Optional[bool] tokens:
     """
     def __init__(self, tokens):
         super().__init__(tokens)
@@ -247,7 +265,7 @@ class Format(Payload):
         self.respectcase = False
         self.missing = '?'  # FIXME: one-character, most punctuation excluded
         self.gap = None
-        self.symbols = []
+        self.symbols = {'0', '1'}  # The default for DATATYPE=STANDARD
         self.equate = {}
         self.matchchar = None
         self.labels = None
@@ -256,19 +274,17 @@ class Format(Payload):
         self.items = []
         self.statesformat = None
         self.tokens = None
-        """
-         [ DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE I PROTEIN | CONTINUOUS} ]
-        [ SYMBOLS = " symbol [symbol...]"]
-        [ EQUATE = " symbol = entry [symbol = entry... ] " ]
-        [ITEMS=([MIN] [MAX] [MEDIAN] [AVERAGE] [VARIANCE] [STDERROR] [SAMPLESIZE] [STATES])]
-        [STATESFORMAT= {STATESPRESENT | INDIVIDUALS | COUNT | FREQUENCY}.]
-        """
+
+        if tokens is None:
+            return
+
         words = iter_words_and_punctuation(tokens)
 
         def word_after_equals():
             n = next(words)
             assert n.text == '='
-            return next(words)
+            res = next(words)
+            return res if isinstance(res, str) else res.text
 
         while 1:
             try:
@@ -283,49 +299,131 @@ class Format(Payload):
                 elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
                     setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
                 elif subcommand == 'SYMBOLS':
-                    pass  # consume the next word and optionally leading/trailing double quotes
+                    self.symbols = set()
+                    for w in iter_delimited(word_after_equals(), words):
+                        if isinstance(w, str):
+                            self.symbols = self.symbols.union(list(w))
+                        else:
+                            assert w.text in '+-'
+                            self.symbols.add(w.text)
                 elif subcommand == 'EQUATE':
-                    pass  # "s=(ab)s=a" ...
+                    key, e = None, False
+                    for t in iter_delimited(word_after_equals(), words):
+                        if isinstance(t, Token) and t.text == '=':
+                            assert key
+                            e = True
+                        #
+                        # FIXME: support equate with {...}!
+                        #
+                        elif isinstance(t, str):
+                            if key:
+                                assert e
+                                self.equate[key] = t if len(t) == 1 else tuple(t)
+                                key, e = None, False
+                            else:
+                                key = t
                 elif subcommand == 'ITEMS':
-                    pass  # consume the next word, or ( + words + )
+                    for w in iter_delimited(
+                            word_after_equals(), words, delimiter='()', allow_single_word=True):
+                        assert isinstance(w, str)
+                        self.items.append(w)
             except StopIteration:
                 break
+        if self.datatype:
+            self.datatype = self.datatype.upper()
+            assert self.datatype in {
+                'STANDARD', 'DNA', 'RNA', 'NUCLEOTIDE', 'PROTEIN', 'CONTINUOUS'}
+        self.items = [i.upper() for i in self.items]
+        assert all(
+            i in 'MIN MAX MEDIAN AVERAGE VARIANCE STDERROR SAMPLESIZE STATES'.split()
+            for i in self.items)
+        if not self.items:
+            self.items = ['STATES']
+        if self.statesformat:
+            self.statesformat = self.statesformat.upper()
+            assert self.statesformat in {'STATESPRESENT', 'INDIVIDUALS', 'COUNT', 'FREQUENCY'}
+        else:
+            self.statesformat = 'STATESPRESENT'
 
-
-class Taxlabels(Payload):
-    """
-    This command allows specification of the names of the taxa. It
-    serves to define taxa and is only allowed in a CHARACTERS block if the NEWTAXA to-
-    ken is included in the DIMENSIONS statement.
-    """
+        if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
+            T = 'U' if self.datatype == 'RNA' else 'T'
+            self.symbols = self.symbols.union('ACG' + T)
+            self.equate.update(
+                R=set('AG'),
+                Y=set('C' + T),
+                M=set('AC'),
+                K=set('G' + T),
+                S=set('CG'),
+                W=set('A' + T),
+                H=set('AC' + T),
+                B=set('CG' + T),
+                V=set('ACG'),
+                D=set('AG' + T),
+                N=set('ACG' + T),
+                X=set('ACG' + T),
+            )
+            if self.datatype == 'NUCLEOTIDE':
+                self.equate.update(U='T')
+        elif self.datatype == 'PROTEIN':
+            self.symbols = self.symbols.union('ACDEFGHIKLMNPQRSTVWY*')
+            self.equate.update(B=set('DN'), Z=set('EQ'))
 
 
 class Charstatelabels(Payload):
     """
-    This command allows specification of both the names of the
-    characters and the names of the states. This command was developed as an alter-
-    native to the older commands CHARLABELS and STATELABELS. For example,
+    This command allows specification of both the names of the characters and the names of the
+    states. This command was developed as an alternative to the older commands CHARLABELS and
+    STATELABELS. For example,
 
     .. code-block::
 
         CHARSTATELABELS
-            1 eye_color / red blue green,
+            1 eye_color/red blue green,
             3 head_shape/round square,
             5 pronotum_size/small medium large
 
-    A forward slash (/) separates the character name and the state names, with a
-    comma separating the information for different characters. If no state names are to
-    be specified, the slash may be omitted; if no character names are to be specified, the
-    slash must be included, but no token needs to be included between the character num-
-    ber and the slash. If state x is the last state to be named, then subsequent states need
-    not be named, but states 1 through x must be. If no name is to be applied to a state,
-    enter a single underscore for its name. Character and state names are single NEX-
-    US words. Character names must not correspond to another character name or
-    number; thus, 1 is not a valid name for the second character listed. There is no restric-
-    tion on the length of a character or state name imposed by the NEXUS standard;
-    however, particular programs may limit the length. State names cannot be applied
-    if DATATYPE=CONTINUOUS.
+    A forward slash (/) separates the character name and the state names, with a comma separating
+    the information for different characters. If no state names are to be specified, the slash may
+    be omitted; if no character names are to be specified, the slash must be included, but no token
+    needs to be included between the character number and the slash. If state x is the last state
+    to be named, then subsequent states need not be named, but states 1 through x must be. If no
+    name is to be applied to a state, enter a single underscore for its name. Character and state
+    names are single NEXUS words. Character names must not correspond to another character name or
+    number; thus, 1 is not a valid name for the second character listed. State names cannot be
+    applied if DATATYPE=CONTINUOUS.
+
+    :ivar typing.List[types.SimpleNamespace] characters:
     """
+
+    def __init__(self, tokens):
+        super().__init__(tokens)
+        self.characters = []
+
+        words = iter_words_and_punctuation(tokens)
+        num, name, states, in_states = None, None, [], False
+
+        while 1:
+            try:
+                w = next(words)
+                if num is None:
+                    num = int(w)
+                    continue
+                if isinstance(w, Token) and w.text == ',':
+                    self.characters.append(
+                        types.SimpleNamespace(number=num, name=name, states=states))
+                    num, name, states, in_states = None, None, [], False
+                    continue
+                if in_states:
+                    states.append(w)
+                    continue
+                if isinstance(w, Token) and w.text == '/':
+                    in_states = True
+                    continue
+                name = w
+            except StopIteration:
+                break
+        if num:
+            self.characters.append(types.SimpleNamespace(number=num, name=name, states=states))
 
 
 class Charlabels(Payload):
@@ -338,23 +436,29 @@ class Charlabels(Payload):
             flange microsculpture
             body_length
             hind_angles #_spines
-            spine_size head_size
-            pubescent—intervals head_color
-            clypeal—margin;
+            spine_size _ _ head_size
+            pubescent_intervals head_color
+            clypeal_margin;
 
-    Character labels are listed consecutively. If character x is the last character to be
-    named, then subsequent characters need not be named, but characters 1 through x
-    need to be. If no name is to be applied to a character, a single underscore can be
-    used for its name. Character names are single NEXUS words. They must not cor-
-    respond to another character name or number; thus, 1 is not a valid name for the
-    second character listed. There is no restriction on the length of a
-    character name imposed by the NEXUS standard; however, particular programs
-    may limit the length. The command should be used only for nontransposed
-    matrices (in transposed matrices, the character labels are defined in the MATRIX com-
-    mand). We recommend that programs abandon this command in place of the more flexible
-    CHARSTATELABELS command when writing NEXUS files, although programs
-    should continue to read CHARLABELS because many existing NEXUS files use CHARLABELS.
+    Character labels are listed consecutively. If character x is the last character to be named,
+    then subsequent characters need not be named, but characters 1 through x need to be. If no name
+    is to be applied to a character, a single underscore can be used for its name. Character names
+    are single NEXUS words. They must not correspond to another character name or number; thus, 1
+    is not a valid name for the second character listed. The command should be used only for
+    nontransposed matrices (in transposed matrices, the character labels are defined in the MATRIX
+    command). We recommend that programs abandon this command in place of the more flexible
+    CHARSTATELABELS command when writing NEXUS files, although programs should continue to read
+    CHARLABELS because many existing NEXUS files use CHARLABELS.
+
+    :ivar typing.List[types.SimpleNamespace] characters:
     """
+
+    def __init__(self, tokens):
+        super().__init__(tokens)
+        self.characters = []
+        for i, w in enumerate(iter_words_and_punctuation(tokens)):
+            assert isinstance(w, str)
+            self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
 
 
 class Statelabels(Payload):
@@ -378,12 +482,19 @@ class Statelabels(Payload):
     each character. State labels are listed consecutively within a character. If state x is the
     last state to be named, then subsequent states need not be named, but states 1 through x must
     be. If no name is to be applied to a state, enter a single underscore for its name. State
-    names are single NEXUS words. The standard defines no limit to their length, although individ-
-    ual programs might impose restrictions. This command is not valid for DATATYPE =CONTINUOUS.
+    names are single NEXUS words. This command is not valid for DATATYPE =CONTINUOUS.
     We recommend that programs abandon this command in place of the more flexible
     CHARSTATELABELS command when writing NEXUS files, although programs should continue to read
-    STATELABuse many existing NEXUS files use STATELABELS.
+    STATELABELS because many existing NEXUS files use STATELABELS.
+
+    :ivar typing.List[types.SimpleNamespace] characters:
     """
+
+    def __init__(self, tokens):
+        super().__init__(tokens)
+        #
+        # FIXME: incomplete
+        #
 
 
 class Matrix(Payload):
@@ -398,28 +509,26 @@ class Matrix(Payload):
             taxon-name entry entry... entry
             taxon-name entry entry... entry;
 
-    Each entry in the matrix is the information about a particular character for a particular
-    taxon. For example, it might be the assignment of state 0 to taxon 1 for character 1.
-    Thus, the entry would consist of one state symbol, 0. If the taxon were poly-
-    morphic, the entry would consiste of multiple state symbols, e.gv (0 1), indicating
-    the taxon has both states 0 and 1. More details about the nature of each entry of
-    the matrix are given under ITEMS and under each DATATYPE.
-    Each entry needs to be enclosed in parentheses or braces whenever more than
-    one state symbol is given, e.g. (01) with standard data and the default NOTOKENS
-    option, or if the information is conveyed by more than one NEXUS token, e.g., (0:100)
-    or (2.3 4.5 6.7). Otherwise, the parentheses or braces are optional. No whitespace is
-    needed between entries in the matrix unless the TOKENS subcommand of the FORMAT command is
-    invoked or implied and parentheses or braces do not surround an entry.
-    Taxa need not be in the same order as in the TAXA block, and the matrix need not
-    contain all taxa. For interleaved matrices, all sections must have the same taxa in the
-    same order.
+    Each entry in the matrix is the information about a particular character for a particular taxon.
+    For example, it might be the assignment of state 0 to taxon 1 for character 1. Thus, the entry
+    would consist of one state symbol, 0. If the taxon were polymorphic, the entry would consist
+    of multiple state symbols, e.g. (0 1), indicating the taxon has both states 0 and 1. More
+    details about the nature of each entry of the matrix are given under ITEMS and under each
+    DATATYPE. Each entry needs to be enclosed in parentheses or braces whenever more than one state
+    symbol is given, e.g. (01) with standard data and the default NOTOKENS option, or if the
+    information is conveyed by more than one NEXUS token, e.g., (0:100) or (2.3 4.5 6.7). Otherwise,
+    the parentheses or braces are optional. No whitespace is needed between entries in the matrix
+    unless the TOKENS subcommand of the FORMAT command is invoked or implied and parentheses or
+    braces do not surround an entry.
+    Taxa need not be in the same order as in the TAXA block, and the matrix need not contain all
+    taxa. For interleaved matrices, all sections must have the same taxa in the same order.
     Examples of matrices of different DATATYPES are described below.
 
-    1. STANDARD data. For DATATYPE=STANDARD, each entry of the matrix con-
-       sists of a single state-set. Under the defaults (ITEMS=STATES and STATESFORMAT=
-       STATESPRESENT), each entry of the matrix consists of a single state-set; if there are
-       multiple states, then the entry must be enclosed in parentheses (indicating polymor-
-       phism) or braces (indicating uncertainty in state). For example, in the following matrix,
+    1. For STANDARD data, each entry of the matrix consists of a single state-set. Under the
+       defaults (ITEMS=STATES and STATESFORMAT=STATESPRESENT), each entry of the matrix consists of
+       a single state-set; if there are multiple states, then the entry must be enclosed in
+       parentheses (indicating polymorphism) or braces (indicating uncertainty in state). For
+       example, in the following matrix,
 
        .. code-block::
 
@@ -432,31 +541,28 @@ class Matrix(Payload):
                     taxon_3 -++++--+x;
             END;
 
-       taxon_1 is polymorphic for the first character and has either state - or state + for
-       the second character. If STATESFORMAT=COUNT or FREQUENCY, then each entry
-       must be enclosed in parentheses because more than one token is required to convey
-       information for even one state:
+       taxon_1 is polymorphic for the first character and has either state - or state + for the
+       second character. If STATESFORMAT=COUNT or FREQUENCY, then each entry must be enclosed in
+       parentheses because more than one token is required to convey information for even one state:
 
        .. code-block::
 
             BEGIN CHARACTERS;
                 DIMENSIONS NCHAR=3;
-                FORMAT STATESFORMAT=FREQUENCY
-                SYMBOLS = "012";
+                FORMAT STATESFORMAT=FREQUENCY SYMBOLS = "012";
                 MATRIX
                     taxon_1 (0:0.251:0.75) (0:0.31:0.7) (0:0.51:0.32:0.2)
                     taxon_2 (0:0.41:0.6) (0:0.81:0.2) (1:0.152:0.85)
                     taxon_3 (0:0.01:1.0) (0:0.551:0.45) (0:0.11:0.9);
             END;
 
-    2. DNA, RNA, NUCLEOTIDE, and PROTEIN data. For D A T A T Y P E = D N A , RNA,
-       NUCLEOTIDE, or PROTEIN, each entry of the matrix consists of one or more state sym-
-       bols describing the state(s) at one site in a molecular sequence. If STATESFOR-
-       MAT=STATESPRESENT and if an entry represents a single state, then it is represented
-       as a single state symbol (or if DATATYPE =PROTEIN and TOKENS, as a three-let-
-       ter amino acid name). If an entry represents multiple states, then it must be
-       enclosed in parentheses (indicating polymorphism) or braces (indicating uncertain-
-       ty in state). Following is a matrix of DATATYPE=DNA:
+    2. For DNA, RNA, NUCLEOTIDE, and PROTEIN data, each entry of the matrix consists of one or more
+       state symbols describing the state(s) at one site in a molecular sequence. If
+       STATESFORMAT=STATESPRESENT and if an entry represents a single state, then it is represented
+       as a single state symbol (or if DATATYPE=PROTEIN and TOKENS, as a three-letter amino acid
+       name). If an entry represents multiple states, then it must be enclosed in parentheses
+       (indicating polymorphism) or braces (indicating uncertainty in state). Following is a matrix
+       of DATATYPE=DNA:
 
        .. code-block::
 
@@ -469,11 +575,11 @@ class Matrix(Payload):
                     taxon_3 TCCATGGAACCC;
             END;
 
-    3. CONTINUOUS data. For DATATYPE=CONTINUOUS, each entry in the matrix must
-       be enclosed by parentheses if more than one item is specified in the ITEMS subcommand.
-       Parentheses must also be used whenever multiple tokens are needed for an entry in
-       the matrix. If an entry consists of a single token (eg., 0.231), it may be written without
-       parentheses but must then be separated from other entries by whitespace.
+    3. For CONTINUOUS data, each entry in the matrix must be enclosed by parentheses if more than
+       one item is specified in the ITEMS subcommand. Parentheses must also be used whenever
+       multiple tokens are needed for an entry in the matrix. If an entry consists of a single
+       token (eg., 0.231), it may be written without parentheses but must then be separated from
+       other entries by whitespace.
 
        .. code-block::
 
@@ -482,15 +588,14 @@ class Matrix(Payload):
                 B 0.34 1.02 55.7
                 C 0.22 1.79 69.1;
 
-       A matrix entry can include average, minimum, maximum, variance, standard error,
-       sample size, and a listing of states observed in the taxon, as specified in the
-       ITEMS subcommand. The sample size, if included, must be in the form of an integer;
-       the other numbers can be either in English decimal (e.g., 0.00452) or in exponential
-       form (e.g., 4.52E-3).
-       The information listed for each taxon for a continuous character is specified in the
-       ITEMS subcommand of the FORMAT command. For example, if the matrix contains
-       only information about the minimum and maximum value for each taxon, the ITEMS
-       subcommand would be ITEMS = (MIN MAX) and a small matrix might look something like this:
+       A matrix entry can include average, minimum, maximum, variance, standard error, sample size,
+       and a listing of states observed in the taxon, as specified in the ITEMS subcommand. The
+       sample size, if included, must be in the form of an integer; the other numbers can be either
+       in English decimal (e.g., 0.00452) or in exponential form (e.g., 4.52E-3). The information
+       listed for each taxon for a continuous character is specified in the ITEMS subcommand of the
+       FORMAT command. For example, if the matrix contains only information about the minimum and
+       maximum value for each taxon, the ITEMS subcommand would be ITEMS=(MIN MAX) and a small
+       matrix might look something like this:
 
        .. code-block::
 
@@ -498,10 +603,10 @@ class Matrix(Payload):
                 taxon_1 (0.21 0.45) (0.34 0.36)
                 taxon_2 (0.13 0.22) (0.45 0.55);
 
-       If the ITEMS include the raw measurements (states), e.g., to list a sample of mea-
-       surements from individuals, then the other items must precede the listing of states.
-       There is no restriction on the number of elements in the listing of states. This ex-
-       ample has only one continuous character:
+       If the ITEMS include the raw measurements (states), e.g., to list a sample of measurements
+       from individuals, then the other items must precede the listing of states. There is no
+       restriction on the number of elements in the listing of states. This example has only one
+       continuous character:
 
        .. code-block::
 
@@ -510,12 +615,11 @@ class Matrix(Payload):
                 taxon_1 (1.2 2.1 1.6 0.8 1.8 0.3 0.6)
                 taxon_2 (1.6 2.2 1.7 1.0 2.0 1.6 1.9 0.8);
 
-       in which the first value is the sample average and the subsequent values comprise
-       the sample of observed states. Possible ITEMS to be included are MIN
-       (minimum), MAX (maximum), AVERAGE (sample average), VARIANCE (sample vari-
-       ance), STDERROR (standard error), MEDIAN (sample median), SAMPLESIZE, and STATES.
-       The manner of presentations of states can be indicated using the STATESFORMAT com-
-       mand. The default ITEMS for continuous data is AVERAGE.
+       in which the first value is the sample average and the subsequent values comprise the sample
+       of observed states. Possible ITEMS to be included are MIN (minimum), MAX (maximum), AVERAGE
+       (sample average), VARIANCE (sample variance), STDERROR (standard error), MEDIAN
+       (sample median), SAMPLESIZE, and STATES. The manner of presentations of states can be
+       indicated using the STATESFORMAT command. The default ITEMS for continuous data is AVERAGE.
     """
 
 
@@ -533,19 +637,19 @@ class Characters(Block):
         BEGIN CHARACTERS;
             DIMENSIONS [NEWTAXA NTAX=number-of-taxa] NCHAR=number-of-characters;
             [FORMAT
-                [DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE I PROTEIN | CONTINUOUS} ]
+                [DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE | PROTEIN | CONTINUOUS} ]
                 [RESPECTCASE]
                 [MISSING=symbol]
-                [ GAP=symbol]
-                [ SYMBOLS = " symbol [symbol...]"]
-                [ EQUATE = " symbol = entry [symbol = entry... ] " ]
+                [GAP=symbol]
+                [SYMBOLS="symbol [symbol...]"]
+                [EQUATE="symbol = entry [symbol = entry... ] " ]
                 [MATCHCHAR= symbol ]
-                [ [No] LABELS]
+                [[No]LABELS]
                 [TRANSPOSE]
                 [INTERLEAVE]
                 [ITEMS=([MIN] [MAX] [MEDIAN] [AVERAGE] [VARIANCE] [STDERROR] [SAMPLESIZE] [STATES])]
-                [STATESFORMAT= {STATESPRESENT | INDIVIDUALS | COUNT | FREQUENCY}.]
-                [ [No] TOKENS]
+                [STATESFORMAT= {STATESPRESENT | INDIVIDUALS | COUNT | FREQUENCY}]
+                [[No]TOKENS]
             ;]
             [ELIMINATE character-set;]
             [TAXLABELS taxon-name [taxon-name ...];]
@@ -565,7 +669,157 @@ class Characters(Block):
     DIMENSIONS, FORMAT, and ELIMINATE must all precede CHARLABELS, CHARSTATELABELS, STATELABELS,
     and MATRIX. DIMENSIONS must precede ELIMINATE. Only one of each command is allowed per block.
     """
-    pass
+    __commands__ = [
+        Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
+
+    def get_matrix(self):
+        format = Format(None) if 'FORMAT' not in self.commands else self.FORMAT
+
+        if format.datatype == 'CONTINUOUS' or \
+                any(i != 'STATES' for i in format.items) or \
+                format.tokens or \
+                'ELIMINATE' in self.commands or \
+                (format.statesformat and format.statesformat != 'STATESPRESENT'):
+            raise NotImplementedError()
+
+        ntax, taxlabels = None, {}
+        nchar, charlabels = self.DIMENSIONS.nchar, \
+            {i + 1: str(i + 1) for i in range(self.DIMENSIONS.nchar)}
+        if 'CHARSTATELABELS' in self.commands:
+            charlabels = {
+                int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
+
+        #
+        # FIXME: read charlabels from CHARLABELS and CHARSTATELABELS
+        #
+        if 'TAXLABELS' in self.commands:
+            taxlabels = self.TAXLABELS.labels
+            ntax = self.DIMENSIONS.ntax
+        elif 'TAXA' in self.nexus.blocks:
+            taxlabels = self.nexus.TAXA.TAXLABELS.labels
+            ntax = self.nexus.TAXA.DIMENSIONS.ntax
+
+        if format.interleave and format.labels is False and not format.transpose:
+            # If the matrix has no row labels and is not transposed, we need the number of taxa to
+            # compute the size of the interleaved blocks.
+            assert ntax
+            taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
+
+        # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
+        # ordered dictionary mapping row labels (or numbers) to lists of entries.
+        res = collections.OrderedDict()
+        label, entries = None, []
+        ncols, nrows = ntax if format.transpose else nchar, nchar if format.transpose else ntax
+
+        for i, line in enumerate(
+                list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
+                start=1):
+            words = iter_words_and_punctuation(line, allow_punctuation_in_word='+-')
+            while 1:
+                try:
+                    t = next(words)
+                    if (format.labels is not False) and label is None:
+                        assert isinstance(t, str)
+                        label = t
+                        continue
+                    if isinstance(t, Token):
+                        if t.text == '(':
+                            #
+                            # FIXME: apparently, states in parentheses may contain whitespace and
+                            # commas.
+                            #
+                            entries.append(tuple(next(words)))
+                            assert next(words).text == ')'
+                        elif t.text == '{':
+                            entries.append(set(next(words)))
+                            assert next(words).text == '}'
+                        else:
+                            raise ValueError('Unexpected punctuation in matrix')
+                    else:
+                        entries.extend(list(t))  # We split a word into a list of symbols.
+                    if not format.interleave and (len(entries) == ncols):
+                        res[label or (len(res) + 1)] = entries
+                        label, entries = None, []
+                except StopIteration:
+                    break
+            if format.interleave:
+                key = label or (i % nrows or nrows)
+                if key not in res:
+                    res[key] = []
+                res[key].extend(entries)
+                label, entries = None, []
+
+        cols = ncols or len(list(res.values())[0])
+        assert all(len(states) == cols for states in res.values())
+        if not taxlabels:
+            if format.transpose:
+                taxlabels = {i + 1: str(i + 1) for i in range(cols)}
+            else:
+                taxlabels = {i + 1: key for i, key in enumerate(res)}
+
+        def replace_symbol(s, i, r):
+            if (format.respectcase and s == format.missing) or \
+                    (not format.respectcase and (s.upper() == format.missing.upper())):
+                return None
+            if format.gap:
+                if (format.respectcase and s == format.gap) or \
+                        (not format.respectcase and (s.upper() == format.gap.upper())):
+                    return GAP
+            if format.matchchar:  # match entries from first row!
+                if (format.respectcase and s == format.matchchar) or \
+                        (not format.respectcase and (s.upper() == format.matchchar.upper())):
+                    assert r
+                    return r[i]
+            assert s in format.symbols, '{} {}'.format(s, format.symbols)
+            return s
+
+        def resolve_symbols(s, i, r):
+            def resolve(c, i, r):
+                c = format.equate.get(c, c)
+                if isinstance(c, str):
+                    return replace_symbol(c, i, r)
+                if isinstance(c, tuple):
+                    return tuple(replace_symbol(cc, i, r) for cc in c)
+                if isinstance(c, set):
+                    return set(replace_symbol(cc, i, r) for cc in c)
+                raise ValueError(c)
+
+            if isinstance(s, str):
+                return resolve(s, i, r)
+            if isinstance(s, tuple):
+                return tuple(resolve(c, i, r) for c in s)
+            if isinstance(s, set):
+                return set(resolve(c, i, r) for c in s)
+
+        firstrow = None
+        for i, l in enumerate(res):
+            res[l] = [resolve_symbols(s, i, firstrow) for i, s in enumerate(res[l])]
+            if i == 0:
+                firstrow = res[l]
+
+        # Create the final result, an OrderedDict mapping taxa labels (or numbers) to OrderedDicts
+        # of character labels or numbers.
+        matrix = collections.OrderedDict()
+        for tnum, tlabel in sorted(taxlabels.items()):
+            if format.transpose:
+                # We have to pick the tnum column in each list in res.
+                matrix[tlabel] = collections.OrderedDict()
+                for cnum, clabel in sorted(charlabels.items()):
+                    entries = res[clabel] if clabel in res else res[cnum]
+                    matrix[tlabel][clabel] = entries[tnum - 1]
+            else:
+                entries = res[tlabel] if tlabel in res else res[tnum]
+                matrix[tlabel] = collections.OrderedDict(
+                    [(charlabels[i], s) for i, s in enumerate(entries, start=1)])
+        return matrix
+
+    def validate(self, log=None):
+        if 'TAXLABELS' in self.commands and not self.DIMENSIONS.newtaxa:
+            log.error(
+                'TAXLABELS may only be defined in {} block if NEWTAXA is specified.'.format(
+                    self.name))
+            return False
+        return True
 
 
 class Data(Characters):

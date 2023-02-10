@@ -131,7 +131,7 @@ class Tree(Payload):
         tokens = iter(tokens)
         while not self.name:
             t = next(tokens)
-            if t.type == TokenType.WORD:
+            if t.type in {TokenType.WORD, TokenType.QWORD}:
                 self.name = t.text
 
         while not e:

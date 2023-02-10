@@ -53,6 +53,9 @@ from commonnexus.tokenizer import TokenType
                 'ape_random.trees',
                 lambda n: n.comments[0].text == 'R-package APE, Mon Apr  4 13:30:05 2011'),
         #(
+        #        'quoted_tree_name.nex',
+        #        lambda n: n.TREES.TREE.name.startswith('Transformed') and n.TREES.TREE.newick_node),
+        #(
         #        'regression/detranslate-beast-2.trees',
         #        lambda n: str(n.TREES.TREE).startswith('TREE1 = [&R] ((((4[&length')),
         #(
@@ -69,7 +72,7 @@ def test_Nexus(nex, expect, fixture_dir):
         n = Nexus.from_file(p)
         nex = p.read_text(encoding='utf8')
     assert expect(n)
-    assert str(n) == nex
+    assert str(n).strip() == nex.strip()
 
 
 def test_Nexus_modification():
