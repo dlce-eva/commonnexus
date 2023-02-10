@@ -183,6 +183,16 @@ class Word(str):
     def __eq__(self, other):
         return self.replace(' ', '_') == other.replace(' ', '_')
 
+    def as_nexus_string(self):
+        quote = False
+        for chars in [WHITESPACE, COMMENT, PUNCTUATION, QUOTE]:
+            if any(c in self for c in chars):
+                quote = True
+                break
+        if quote:
+            return "'{}'".format(self.replace("'", "''"))
+        return self
+
     def __hash__(self):
         return hash(str(self))
 

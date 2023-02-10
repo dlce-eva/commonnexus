@@ -2,7 +2,7 @@ import re
 import collections
 
 from commonnexus._compat import cached_property
-from commonnexus.tokenizer import get_name
+from commonnexus.tokenizer import get_name, iter_tokens
 
 
 class Payload:
@@ -12,7 +12,7 @@ class Payload:
     __multivalued__ = False
 
     def __init__(self, tokens):
-        self._tokens = tokens
+        self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
 
     def format(self, *args, **kw):
         """

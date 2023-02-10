@@ -4,7 +4,7 @@ import collections
 from newick import Token, NewickString, Node
 
 from .base import Payload, Block
-from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
+from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word
 
 
 class Translate(Payload):
@@ -42,13 +42,18 @@ class Translate(Payload):
 
     :ivar typing.Dict[str, str] mapping: The mapping of tokens used in the tree description to \
     valid taxon names.
+
+    .. note::
+
+        The ``TRANSLATE`` data is typically not accessed directly, but just used implicitly when
+        calling :meth:`Trees.translate`.
     """
     def __init__(self, tokens):
         super().__init__(tokens)
         # get a word, and another word, then look for comma.
         self.mapping = collections.OrderedDict()
         key, value = None, None
-        for t in iter_words_and_punctuation(tokens):
+        for t in iter_words_and_punctuation(self._tokens):
             if not key:
                 assert isinstance(t, str)
                 key = t
@@ -70,15 +75,14 @@ class Tree(Payload):
     They use the familiar parenthesis notation, with node names, branch lengths, and comments
     following the established Newick tree standard (see Felsenstein, 1993).
 
-    The label of the node is a NEXUS token that is a taxon's defined name, a taxon's
-    number, a taxon's label from the translation table, or a clade's defined name. The
-    label is optional for internal nodes that are not observed taxa; it is not optional for
-    terminal nodes. Internal nodes that have no label are represented implicitly by the parentheses
-    containing the list of subclades. If the name of a TAXSET is used, it is interpreted as a list
-    of the terminal taxa defined to be in the TAXSET (with commas
-    implicitly inserted between the taxa). The length of the branch below the node
-    is a number, positive or negative. Rooted and unrooted trees can be spec-
-    ified using the [&R] and [&U] comments at the start of the tree description. For example,
+    The label of the node is a NEXUS token that is a taxon's defined name, a taxon's number, a
+    taxon's label from the translation table, or a clade's defined name. The label is optional for
+    internal nodes that are not observed taxa; it is not optional for terminal nodes. Internal
+    nodes that have no label are represented implicitly by the parentheses containing the list of
+    subclades. If the name of a TAXSET is used, it is interpreted as a list of the terminal taxa
+    defined to be in the TAXSET (with commas implicitly inserted between the taxa). The length of
+    the branch below the node is a number, positive or negative. Rooted and unrooted trees can be
+    specified using the [&R] and [&U] comments at the start of the tree description. For example,
 
     .. code-block::
 
@@ -120,6 +124,17 @@ class Tree(Payload):
     if no information is given)
     :ivar str newick_string: The tree description formatted as Newick string.
     :ivar newick.Node newick_node: The tree description as `newick.Node`.
+
+    .. code-block:: python
+
+        >>> tree = Tree('tree4= (((Bluebird)Archaeopteryx,Crocodile)Archosauria,Rattlesnake)')
+        >>> tree.name
+        'tree4'
+        >>> print(tree.newick_node.ascii_art())
+                                        ┌─Archaeopteryx ──Bluebird
+                        ┌─Archosauria───┤
+        ────────────────┤               └─Crocodile
+                        └─Rattlesnake
     """
     __multivalued__ = True
 
@@ -128,7 +143,7 @@ class Tree(Payload):
         # We parse tree name and rooting information right away.
         self.name, e, self._rooted, nwk = None, False, None, False
 
-        tokens = iter(tokens)
+        tokens = iter(self._tokens)
         while not self.name:
             t = next(tokens)
             if t.type in {TokenType.WORD, TokenType.QWORD}:
@@ -154,6 +169,17 @@ class Tree(Payload):
         self._remaining_tokens = tokens
         self._ns = None
         self._nn = None
+
+    @staticmethod
+    def format(name: str, newick_node: Node, rooted: typing.Optional[bool] = None) -> str:
+        """
+        Returns a representation of a tree as NEXUS string, suitable as payload of a ``TREE``
+        command.
+        """
+        return '{} = {}{}'.format(
+            Word(name).as_nexus_string(),
+            '' if rooted is None else '[&{}] '.format('R' if rooted else 'U'),
+            newick_node.newick)
 
     @property
     def rooted(self):
@@ -244,7 +270,31 @@ class Trees(Block):
                 tree_seen = True
         return valid
 
-    def translated(self, tree: typing.Union[Tree, Node]) -> Node:
+    def translate(self, tree: typing.Union[Tree, Node]) -> Node:
+        """
+
+        :param tree:
+        :return: A Newick node where the node labels have been translated to valid taxon labels.
+
+        .. note::
+
+            Translating a tree does **not** change tree's representation in the containing
+            ``Nexus`` instance. To replace un-translated trees in a NEXUS file with translated
+            ones, the following code would work:
+
+            .. code-block:: python
+
+                >>> untranslated = Nexus.from_file(path)
+                >>> trees = []
+                >>> for tree in untranslated.TREES.commands['TREE']:
+                ...     trees.append(Tree.format(
+                ...         tree.name,
+                ...         untranslated.TREES.translate(tree).newick_node,
+                ...         rooted=tree.rooted))
+                >>> untranslated.replace_block(
+                ...     untranslated.TREES, [('TREE', tree) for tree in trees])
+                >>> path.write_text(str(untranslated))
+        """
         mapping = {}
         if 'TRANSLATE' in self.commands:
             mapping.update(self.TRANSLATE.mapping)

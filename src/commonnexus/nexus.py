@@ -1,4 +1,5 @@
 import typing
+import pathlib
 import itertools
 import collections
 
@@ -52,7 +53,8 @@ class Command(tuple):
         found = False
         for t in itertools.dropwhile(
                 lambda t: t.type != TokenType.WHITESPACE,
-                itertools.dropwhile(lambda t: t.type == TokenType.WHITESPACE, self[:-1])):
+                itertools.dropwhile(
+                    lambda t: t.type in {TokenType.WHITESPACE, TokenType.COMMENT}, self[:-1])):
             if not found and t.type == TokenType.WHITESPACE:
                 # Drop the first whitespace token, too.
                 continue
@@ -66,7 +68,29 @@ class Command(tuple):
 
 class Nexus(list):
     """
-    A list of tokens with methods to access newick constituents.
+    A list of tokens with methods to access newick constituents. From the spec:
+
+        The tokens in a NEXUS file are organized into commands, which are in turn organized into
+        blocks.
+
+    This is reflected in the ``Nexus`` object. The ``Nexus`` object is just a ``list`` of
+    :class:`Commands <Command>`, and has a property :meth:`Nexus.blocks` giving access to
+    commands grouped by block:
+
+    .. code-block::
+
+        >>> nex = Nexus('#NEXUS BEGIN myblock; mycmd a b c; END;')
+        >>> nex[0].__class__
+        <class 'commonnexus.nexus.Command'>
+        >>> len(nex.blocks['MYBLOCK'])
+        1
+
+    .. note::
+
+        NEXUS is for the most part case-insensitive. ``commonnexus`` reflects this by giving all
+        blocks and commands uppercase names. Thus, even if a command or block has a lowercase or
+        mixed-case name in the file, the corresponding ``Command`` or ``Block`` object must be
+        addressed using the uppercase name.
     """
     def __init__(self,
                  s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
@@ -101,6 +125,7 @@ class Nexus(list):
 
     @classmethod
     def from_file(cls, p):
+        p = pathlib.Path(p)
         with p.open(encoding='utf8') as f:
             return cls(itertools.chain.from_iterable(f))
 

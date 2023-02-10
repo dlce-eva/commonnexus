@@ -1,0 +1,11 @@
+div.nexus {
+    background-color: #f8f8f8;
+    border: 1px solid #e1e4e5;
+    padding: 10px;
+    font-family: SFMono-Regular,Menlo,Monaco,Consolas,Liberation Mono,Courier New,Courier,monospace;
+    font-size: 12px;
+    line-height: 1.4;
+}
+div.nexus a {
+    font-size: larger;
+}

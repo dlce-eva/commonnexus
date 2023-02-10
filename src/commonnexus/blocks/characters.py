@@ -6,6 +6,8 @@ from commonnexus.tokenizer import iter_words_and_punctuation, Token, iter_delimi
 from .taxa import Taxlabels
 
 GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
+#: Some - but not all - punctuation is invalid as (special) state symbol.
+INVALID_SYMBOLS = "()[]{}/\\,;:=*'\"*`<>^"
 
 
 class Eliminate(Payload):
@@ -22,6 +24,8 @@ class Eliminate(Payload):
 
     tells the program to skip over characters 4 through 100 in reading the matrix. Character-set
     names are not allowed in the character list. This command does not affect character numbers.
+
+    .. warning:: The ``ELIMINATE`` command is currently not supported in ``commonnexus``.
     """
 
     def __init__(self, tokens):
@@ -51,7 +55,7 @@ class Dimensions(Payload):
         self.newtaxa = False
         self.ntax = None
         self.char = None
-        words = iter_words_and_punctuation(tokens)
+        words = iter_words_and_punctuation(self._tokens)
         while 1:
             try:
                 word = next(words)
@@ -92,6 +96,9 @@ class Format(Payload):
        data and other information with continuous values can be housed in matrices of
        DATATYPE=CONTINUOUS. These DATATYPES are described in detail, with examples, at the end of
        the description of the CHARACTERS block.
+
+       .. warning:: ``DATATYPE=CONTINUOUS`` is currently not supported in ``commonnexus``.
+
     2. RESPECTCASE. By default, information in a MATRIX may be entered in uppercase, lowercase, or
        a mixture of uppercase and lowercase. If RESPECTCASE is requested, case is considered
        significant in SYMBOLS, MISSING, GAP, and MATCHCHAR subcommands and in subsequent references
@@ -102,14 +109,12 @@ class Format(Payload):
        applicable to DATATYPE = DNA, RNA, NUCLEOTIDE, PROTEIN, and CONTINUOUS.
     3. MISSING. This subcommand declares the symbol that designates missing data.
        The default is "?". For example, MISSING=X defines an X to represent missing
-       data. Whitespace is illegal as a missing data symbol, as are the following symbols:
-       ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
+       data. Whitespace is illegal as a missing data symbol, as are the :data:`INVALID_SYMBOLS`
     4. GAP. This subcommand declares the symbol that designates a data gap (e.g., base absent in
        DNA sequence because of deletion or an inapplicable character in morphological data). There
        is no default gap symbol; a gap symbol must be defined by the GAP subcommand before any gaps
        can be entered into the matrix. For example, GAP=- defines a hyphen to represent a gap.
-       Whitespace is illegal as a gap symbol, as are the following symbols:
-       ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
+       Whitespace is illegal as a gap symbol, as are the :data:`INVALID_SYMBOLS`
     5. SYMBOLS. This subcommand specifies the symbols and their order for character states used in
        the file (including in the MATRIX command). For example, SYMBOLS="0 1 2 3 4 5 6 7" designates
        numbers 0 through 7 as acceptable symbols in a matrix. The SYMBOLS subcommand is not allowed
@@ -124,11 +129,10 @@ class Format(Payload):
        will accept additional symbols for PROTEIN but not DNA, RNA, and NUCLEOTIDE matrices.)
     6. EQUATE. This subcommand allows one to define symbols to represent one matrix entry. For
        example, EQUATE="E=(012)" means that each occurrence of E in the MATRIX command will be
-       interpreted as meaning states 0, 1, and 2. The equate symbols cannot be
-       ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^ or any or the currently defined MISSING, GAP,
-       MATCHCHAR, or state SYMBOLS. Case is significant in equate symbols. That is, MISSING=?
-       EQUATE="E=(012)e=?" means that E will be interpreted as 0, 1, and 2 and e will be
-       interpreted as missing data.
+       interpreted as meaning states 0, 1, and 2. The equate symbols cannot be any of the
+       :data:`INVALID_SYMBOLS` or any or the currently defined MISSING, GAP, MATCHCHAR, or state
+       SYMBOLS. Case is significant in equate symbols. That is, MISSING=? EQUATE="E=(012)e=?" means
+       that E will be interpreted as 0, 1, and 2 and e will be interpreted as missing data.
     7. MATCHCHAR. This subcommand defines a matching character symbol. If this subcommand is
        included, then a matching character symbol in the MATRIX indicates that the states are
        equivalent to the states possessed by the first taxon listed in the matrix for that
@@ -137,7 +141,7 @@ class Format(Payload):
        .. code-block::
 
             BEGIN DATA;
-                DIMENSION NCHAR = 7;
+                DIMENSIONS NCHAR = 7;
                 FORMAT DATATYPE=DNA MATCHCHAR = .;
                 MATRIX
                     taxon_l GACCTTA
@@ -145,8 +149,7 @@ class Format(Payload):
                     taxon_3 ..T.C..;
             END;
 
-       Whitespace is illegal as a matching character symbol, as are the following symbols:
-        ( ) [ ] { } / \\ , ; : = * ' " * ` < > ^
+       Whitespace is illegal as a matching character symbol, as are the :data:`INVALID_SYMBOLS`
     8. [NO]LABELS. This subcommand declares whether taxon or character labels are to appear on the
        left side of the matrix. By default, they should appear. If NOLABELS is used, then no labels
        appear, but then all currently defined taxa must be included in the MATRIX in the order in
@@ -186,7 +189,7 @@ class Format(Payload):
         newline characters are significant: they indicate that the next character information
         encountered applies to a different taxon (for nontransposed matrices).
     11. ITEMS. Each entry in the matrix gives information about a character's condition
-        in a taxon. The.ITEMS subcommand indicates what items of information are listed
+        in a taxon. The ITEMS subcommand indicates what items of information are listed
         at each entry of the matrix. With discrete character data, the entry typically consists
         of the states observed in the taxon (either the single state observed or several states
         if the taxon is polymorphic or of uncertain state). This can be specified by the state-
@@ -202,28 +205,37 @@ class Format(Payload):
         e.g., ITEMS=AVERAGE. More information about ITEMS options can be found in the
         discussion of the different DATATYPES under MATRIX; information specifically about
         the STATES option is given under STATESFORMAT.
+
+       .. warning::
+
+            Settings other than ``ITEMS=STATES`` are currently not supported in ``commonnexus``.
+
     12. STATESFORMAT. The entry in a matrix usually lists (for discrete data) or may list
-        (for continuous data) the states observed in the taxon. The STATESFORMAT subcom-
-        mand specifies what information is conveyed in that list of STATES. In most current
-        programs for discrete data, when a taxon is polymorphic the entry of the matrix lists
-        only what distinct states were observed, without any indication of the number or
-        frequency of individuals sampled with each of the states. Thus, if all individuals
-        sampled within the taxon have state A, the matrix entry would be A, whereas if some
-        have state A and others have state B, the entry would be (AB), which corresponds
-        to the option STATESFORMAT=STATESPRESENT. Because it is the default for dis-
-        crete data, this statement is typically unnecessary with current programs. The
-        other STATESFORMAT options can be illustrated with an example, in which two in-
-        dividuals of a taxon were observed to have state A and three were observed to have
-        state B. When STATESFORMAT=INDIVIDUALS, the state of each of the individuals (or
-        other appropriate sampling subunit) is listed exhaustively, (A A B B B); when STATES-
-        FORMAT =COUNT, the number of individuals with each observed state is indicated,
-        e.g., (A:2 B:3); when STATESFORMAT=FREQUENCY, the frequencies of various ob-
-        served states are indicated, e.g., (A:0.40 B:0.60). The STATESFORMAT command may
-        also be used for continuous data, for which the default is STATESFORMAT=INDIVIDUALS.
-    13. [NO]TOKENS. This subcommand specifies whether data matrix entries are
-        single symbols or whether they can be tokens. If TOKENS, then the data values must
-        be full NEXUS tokens, separated by whitespace or punctuation as appropriate, as in
-        the following example:
+        (for continuous data) the states observed in the taxon. The STATESFORMAT subcommand
+        specifies what information is conveyed in that list of STATES. In most current programs for
+        discrete data, when a taxon is polymorphic the entry of the matrix lists only what distinct
+        states were observed, without any indication of the number or frequency of individuals
+        sampled with each of the states. Thus, if all individuals sampled within the taxon have
+        state A, the matrix entry would be A, whereas if some have state A and others have state B,
+        the entry would be (AB), which corresponds to the option STATESFORMAT=STATESPRESENT.
+        Because it is the default for discrete data, this statement is typically unnecessary with
+        current programs. The other STATESFORMAT options can be illustrated with an example, in
+        which two individuals of a taxon were observed to have state A and three were observed to
+        have state B. When STATESFORMAT=INDIVIDUALS, the state of each of the individuals (or other
+        appropriate sampling subunit) is listed exhaustively, (A A B B B); when STATESFORMAT=COUNT,
+        the number of individuals with each observed state is indicated, e.g., (A:2 B:3); when
+        STATESFORMAT=FREQUENCY, the frequencies of various observed states are indicated, e.g.,
+        (A:0.40 B:0.60). The STATESFORMAT command may also be used for continuous data, for which
+        the default is STATESFORMAT=INDIVIDUALS.
+
+        .. warning::
+
+            Only the default setting ``STATESFORMAT=STATESPRESENT`` is currently supported in
+            ``commonnexus``.
+
+    13. [NO]TOKENS. This subcommand specifies whether data matrix entries are single symbols or
+        whether they can be tokens. If TOKENS, then the data values must be full NEXUS tokens,
+        separated by whitespace or punctuation as appropriate, as in the following example:
 
         .. code-block::
 
@@ -239,11 +251,12 @@ class Format(Payload):
                     taxon_3 present blue small ;
             END;
 
-        TOKENS is the default (and the only allowed option) for DATATYPE=CONTINUOUS;
-        NOTOKENS is the default for all other DATATYPES. TOKENS is not allowed for
-        DATATYPES DNA, RNA, and NUCLEOTIDE. If TOKENS is invoked, the standard three-
-        letter amino acid abbreviations can be used with DATATYPE = PROTEIN and defined
-        state names can be used for DATATYPE=STANDARD.
+        TOKENS is the default (and the only allowed option) for DATATYPE=CONTINUOUS; NOTOKENS is
+        the default for all other DATATYPES. TOKENS is not allowed for DATATYPES DNA, RNA, and
+        NUCLEOTIDE. If TOKENS is invoked, the standard three-letter amino acid abbreviations can be
+        used with DATATYPE=PROTEIN and defined state names can be used for DATATYPE=STANDARD.
+
+        .. warning:: ``TOKENS`` is currently not supported in ``commonnexus``.
 
     :ivar str datatype:
     :ivar bool respectcase:
@@ -258,6 +271,12 @@ class Format(Payload):
     :ivar typing.List[str] items:
     :ivar typing.Optional[str] statesformat:
     :ivar typing.Optional[bool] tokens:
+
+    .. note::
+
+        It's typically not necessary to access the attributes of a ``Format`` instance from user
+        code. Instead, the information is accessed when reading the matrix data in
+        :meth:`Characters.get_matrix`.
     """
     def __init__(self, tokens):
         super().__init__(tokens)
@@ -278,7 +297,7 @@ class Format(Payload):
         if tokens is None:
             return
 
-        words = iter_words_and_punctuation(tokens)
+        words = iter_words_and_punctuation(self._tokens)
 
         def word_after_equals():
             n = next(words)
@@ -344,6 +363,9 @@ class Format(Payload):
             assert self.statesformat in {'STATESPRESENT', 'INDIVIDUALS', 'COUNT', 'FREQUENCY'}
         else:
             self.statesformat = 'STATESPRESENT'
+        for attr in ['missing', 'gap', 'matchchar']:
+            assert getattr(self, attr) or 'z' not in INVALID_SYMBOLS
+        assert not any(c in INVALID_SYMBOLS for c in self.equate)
 
         if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
             T = 'U' if self.datatype == 'RNA' else 'T'
@@ -393,13 +415,21 @@ class Charstatelabels(Payload):
     applied if DATATYPE=CONTINUOUS.
 
     :ivar typing.List[types.SimpleNamespace] characters:
+
+    .. code-block:: python
+
+        >>> cmd = Charstatelabels('1 eye_color/red blue green, 3 head_shape/round square')
+        >>> cmd.characters[0].name
+        'eye_color'
+        >>> cmd.characters[0].states
+        ['red', 'blue', 'green']
     """
 
     def __init__(self, tokens):
         super().__init__(tokens)
         self.characters = []
 
-        words = iter_words_and_punctuation(tokens)
+        words = iter_words_and_punctuation(self._tokens)
         num, name, states, in_states = None, None, [], False
 
         while 1:
@@ -456,7 +486,7 @@ class Charlabels(Payload):
     def __init__(self, tokens):
         super().__init__(tokens)
         self.characters = []
-        for i, w in enumerate(iter_words_and_punctuation(tokens)):
+        for i, w in enumerate(iter_words_and_punctuation(self._tokens)):
             assert isinstance(w, str)
             self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
 
@@ -620,6 +650,13 @@ class Matrix(Payload):
        (sample average), VARIANCE (sample variance), STDERROR (standard error), MEDIAN
        (sample median), SAMPLESIZE, and STATES. The manner of presentations of states can be
        indicated using the STATESFORMAT command. The default ITEMS for continuous data is AVERAGE.
+
+    .. note::
+
+        Since reading the matrix data only makes sense if information from other commands - in
+        particular :class:`FORMAT <Format>` - is considered, the ``Matrix`` object does not have
+        any attributes for data access. Instead, the matrix data can be read via
+        :meth:`Characters.get_matrix`.
     """
 
 
@@ -632,42 +669,43 @@ class Characters(Block):
 
     Syntax of the CHARACTERS block is as follows:
 
-    .. code-block::
+    .. rst-class:: nexus
 
-        BEGIN CHARACTERS;
-            DIMENSIONS [NEWTAXA NTAX=number-of-taxa] NCHAR=number-of-characters;
-            [FORMAT
-                [DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE | PROTEIN | CONTINUOUS} ]
-                [RESPECTCASE]
-                [MISSING=symbol]
-                [GAP=symbol]
-                [SYMBOLS="symbol [symbol...]"]
-                [EQUATE="symbol = entry [symbol = entry... ] " ]
-                [MATCHCHAR= symbol ]
-                [[No]LABELS]
-                [TRANSPOSE]
-                [INTERLEAVE]
-                [ITEMS=([MIN] [MAX] [MEDIAN] [AVERAGE] [VARIANCE] [STDERROR] [SAMPLESIZE] [STATES])]
-                [STATESFORMAT= {STATESPRESENT | INDIVIDUALS | COUNT | FREQUENCY}]
-                [[No]TOKENS]
-            ;]
-            [ELIMINATE character-set;]
-            [TAXLABELS taxon-name [taxon-name ...];]
-            [CHARSTATELABELS
-                character-number [character-name] [/state-name [state-name...]]
-                [, character-number [character-name] [/state-name [state-name...]]...]
-            ;]
-            [CHARLABELS character-name [character-name...];]
-            [STATELABELS
-                character-number [state-name [state-name ...]]
-                    [, character-number [state-name [state-name...]]
-                ...]
-            ;]
-            MATRIX data-matrix;
-        END;
+        | BEGIN CHARACTERS;
+        |   :class:`DIMENSIONS <Dimensions>` [NEWTAXA NTAX=number-of-taxa] NCHAR=number-of-characters;
+        |   [:class:`FORMAT <Format>`
+        |       [DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE | PROTEIN | CONTINUOUS} ]
+        |       [RESPECTCASE]
+        |       [MISSING=symbol]
+        |       [GAP=symbol]
+        |       [SYMBOLS="symbol [symbol...]"]
+        |       [EQUATE="symbol = entry [symbol = entry... ] " ]
+        |       [MATCHCHAR= symbol ]
+        |       [[NO]LABELS]
+        |       [TRANSPOSE]
+        |       [INTERLEAVE]
+        |       [ITEMS=([MIN] [MAX] [MEDIAN] [AVERAGE] [VARIANCE] [STDERROR] [SAMPLESIZE] [STATES])]
+        |       [STATESFORMAT= {STATESPRESENT | INDIVIDUALS | COUNT | FREQUENCY}]
+        |       [[NO]TOKENS]
+        |   ;]
+        |   [:class:`ELIMINATE <Eliminate>` character-set;]
+        |   [:class:`TAXLABELS <commonnexus.blocks.taxa.Taxlabels>` taxon-name [taxon-name ...];]
+        |   [:class:`CHARSTATELABELS <Charstatelabels>`
+        |       character-number [character-name] [/state-name [state-name...]]
+        |       [, character-number [character-name] [/state-name [state-name...]]...]
+        |   ;]
+        |   [:class:`CHARLABELS  <Charlabels>` character-name [character-name...];]
+        |   [:class:`STATELABELS <Statelabels>`
+        |       character-number [state-name [state-name ...]]
+        |       [, character-number [state-name [state-name...]]...]
+        |   ;]
+        |   :class:`MATRIX <Matrix>` data-matrix;
+        | END;
 
-    DIMENSIONS, FORMAT, and ELIMINATE must all precede CHARLABELS, CHARSTATELABELS, STATELABELS,
-    and MATRIX. DIMENSIONS must precede ELIMINATE. Only one of each command is allowed per block.
+    :class:`DIMENSIONS <Dimensions>`, :class:`FORMAT <Format>`, and :class:`ELIMINATE <Eliminate>`
+    must all precede :class:`CHARLABELS <Charlabels>`, :class:`CHARSTATELABELS <Charstatelabels>`, :class:`STATELABELS <Statelabels>`,
+    and :class:`MATRIX <Matrix>`.
+    :class:`DIMENSIONS <Dimensions>` must precede :class:`ELIMINATE <Eliminate>`. Only one of each command is allowed per block.
     """
     __commands__ = [
         Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]

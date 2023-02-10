@@ -69,7 +69,12 @@ MATRIX
             None,
             'DIMENSIONS NCHAR=3; FORMAT DATATYPE=DNA; MATRIX t1 RTA;',
             lambda m: list(m['t1'].values()) == [{'A', 'G'}, 'T', 'A'],
-        )
+        ),
+        (  # From the docuentation of MATCHCHAR:
+            None,
+            'DIMENSIONS NCHAR = 7; FORMAT DATATYPE=DNA MATCHCHAR = .; MATRIX taxon_1 GACCTTA taxon_2 ...T..C taxon_3 ..T.C..;',
+            lambda m: ''.join(m['taxon_2'].values()) == 'GACTTTC',
+        ),
     ]
 )
 def test_Characters_get_matrix(characters, taxa, expect):
@@ -79,5 +84,5 @@ BEGIN CHARACTERS;
 {}
 END;""".format('BEGIN TAXA;\n{}\nEND;'.format(taxa) if taxa else '', characters))
     matrix = nex.CHARACTERS.get_matrix()
-    print(matrix)
+    #print(matrix)
     assert expect(matrix)

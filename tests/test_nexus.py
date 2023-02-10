@@ -51,7 +51,7 @@ from commonnexus.tokenizer import TokenType
         # Test on "real" Nexus files:
         (
                 'ape_random.trees',
-                lambda n: n.comments[0].text == 'R-package APE, Mon Apr  4 13:30:05 2011'),
+                lambda n: n.comments[0].text == 'R-package APE, Mon Apr  4 13:30:05 2011' and 'TAXA' in n.blocks),
         #(
         #        'quoted_tree_name.nex',
         #        lambda n: n.TREES.TREE.name.startswith('Transformed') and n.TREES.TREE.newick_node),
@@ -103,7 +103,7 @@ def test_Nexus_replace_block():
     END;""")
     trees = []
     for tree in nex.TREES.commands['TREE']:
-        trees.append(nex.TREES.translated(tree).newick)
+        trees.append(nex.TREES.translate(tree).newick)
     nex.replace_block(
         nex.TREES, [('TREE', 'tree{} = {}'.format(i + 1, n)) for i, n in enumerate(trees)])
     assert str(nex) == """#NEXUS

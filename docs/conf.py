@@ -17,6 +17,7 @@ release = '0.1.0'
 extensions = [
     'sphinx.ext.autosectionlabel',
     'sphinx.ext.autodoc',
+    'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx_autodoc_typehints',
 ]
@@ -31,7 +32,9 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'sphinx_rtd_theme'
 html_static_path = ['_static']
-
+html_css_files = [
+    'project.css',
+]
 typehints_fully_qualified = True
 always_document_param_types = True
 

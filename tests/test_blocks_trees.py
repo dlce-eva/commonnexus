@@ -15,9 +15,9 @@ END;
 """)
     assert nex.TREES.TRANSLATE.mapping['spider'] == 'Aranaeus'
     assert nex.TREES.TREE.newick_string == '((beetle,fly),spider)'
-    node = nex.TREES.translated(nex.TREES.TREE)
+    node = nex.TREES.translate(nex.TREES.TREE)
     assert node.newick == '((Scarabaeus,Drosophila),Aranaeus)'
 
     tree = nex.TREES.commands['TREE'][1]
     assert tree.newick_string == '((1,2),3)'
-    assert nex.TREES.translated(tree).newick == '((Scarabaeus,Drosophila),Aranaeus)'
+    assert nex.TREES.translate(tree).newick == '((Scarabaeus,Drosophila),Aranaeus)'
