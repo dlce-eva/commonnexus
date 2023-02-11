@@ -723,17 +723,17 @@ class Characters(Block):
         ntax, taxlabels = None, {}
         nchar, charlabels = self.DIMENSIONS.nchar, \
             {i + 1: str(i + 1) for i in range(self.DIMENSIONS.nchar)}
-        if 'CHARSTATELABELS' in self.commands:
+        if self.CHARSTATELABELS:
             charlabels = {
                 int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
 
         #
         # FIXME: read charlabels from CHARLABELS and CHARSTATELABELS
         #
-        if 'TAXLABELS' in self.commands:
+        if self.TAXLABELS:
             taxlabels = self.TAXLABELS.labels
             ntax = self.DIMENSIONS.ntax
-        elif 'TAXA' in self.nexus.blocks:
+        elif self.nexus.TAXA:
             taxlabels = self.nexus.TAXA.TAXLABELS.labels
             ntax = self.nexus.TAXA.DIMENSIONS.ntax
 
@@ -858,6 +858,12 @@ class Characters(Block):
                     self.name))
             return False
         return True
+
+    @classmethod
+    def from_data(cls, *tree_specs, **translate_labels) -> 'Characters':
+        nexus = translate_labels.pop('nexus', None)
+        cmds = []
+        return cls.from_commands(nexus, cmds)
 
 
 class Data(Characters):

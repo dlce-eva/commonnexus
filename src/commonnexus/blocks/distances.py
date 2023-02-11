@@ -1,5 +1,261 @@
-from .base import Block
+import decimal
+import collections
+import itertools
+
+from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines
+from .base import Block, Payload
+from . import characters
+from . import taxa
+
+
+class Dimensions(characters.Dimensions):
+    """
+    The NTAX subcommand of this command is needed to process the matrix when some defined taxa are
+    omitted from the distance matrix. The NCHAR subcommand is optional and can be used to indicate
+    the number of characters for those analyses that need to know how many characters (if any) were
+    used to calculate the distances. NCHAR is not required for successful reading of the matrix.
+    As for the CHARACTERS and UNALIGNED block, taxa can be defined in a DISTANCES block if NEWTAXA
+    precedes the NTAXA subcommand in the DIMENSIONS command. It is advised that new taxa not be
+    defined in a DISTANCES block, for the reasons discussed in the description of the DATA block.
+    NEWTAXA, if present, must be appear before the NTAX subcommand.
+
+    :ivar bool newtaxa:
+    :ivar typing.Optional[int] nchar:
+    :ivar int ntax:
+    """
+
+
+class Format(Payload):
+    """
+    This command specifies the formatting of the MATRIX. The [NO]LABELS and MISSING subcommands are
+    as described in the CHARACTERS block.
+
+    1. TRIANGLE = {LOWER | UPPER | BOTH}. This subcommand specifies whether only the lower left
+       half of the matrix is present, or only the upper right, or both halves. Below is one example
+       of an upper triangular matrix and one of a matrix with both halves included.
+
+       .. code-block::
+
+            BEGIN DISTANCES;
+                FORMAT TRIANGLE=UPPER;
+                MATRIX
+                    taxon_1 0.0  1.0  2.0  4.0  7.0
+                    taxon_2      0.0  3.0  5.0  8.0
+                    taxon_3           0.0  6.0  9.0
+                    taxon_4                0.0 10.0
+                    taxon_5                     0.0;
+            END;
+
+       .. code-block::
+
+            BEGIN DISTANCES;
+                FORMAT TRIANGLE = BOTH;
+                MATRIX
+                    taxon_1  0    1.0  2.0  4.0  7.0
+                    taxon_2  1.0  0    3.0  5.0  8.0
+                    taxon_3  2.0  3.0  0    6.0  9.0
+                    taxon_4  4.0  5.0  6.0  0   10.0
+                    taxon_5  7.0  8.0  9.0 10.0  0;
+            END;
+
+    2. DIAGONAL. If DIAGONAL is turned off, the diagonal elements are not included:
+
+       .. code-block::
+
+            FORMAT NODIAGONAL;
+            MATRIX
+                taxon_1
+                taxon_2  1.0
+                taxon_3  2.0  3.0
+                taxon_4  4.0  5.0  6.0
+                taxon_5  7.0  8.0  9.0 10.0;
+
+       If TRIANGLE is not BOTH and DIAGONAL is turned off, then there will be one row that contains
+       only the name of a taxon. This row is required. If TRIANGLE=BOTH, then the diagonal must be
+       included.
+    3. INTERLEAVE. As in the CHARACTERS block, this subcommand indicates sections in the matrix,
+       although interleaved matrices take a slightly different form for distance matrices:
+
+       .. code-block::
+
+            taxon_1  0
+            taxon_2  1  0
+            taxon_3  2  3  0
+            taxon_4  4  5  6
+            taxon_5  7  8  9
+            taxon_6 11 12 13
+            taxon_4  0
+            taxon_5 10  0
+            taxon_6 14 15  0;
+
+       As in the CHARACTERS block, newline characters in interleaved matrices are significant, in
+       that they indicate a switch to a new taxon.
+    """
+    def __init__(self, tokens):
+        super().__init__(tokens)
+        self.missing = '?'  # FIXME: one-character, most punctuation excluded
+        self.labels = True
+        self.interleave = False
+        self.diagonal = True
+        self.triangle = 'LOWER'
+
+        if tokens is None:
+            return
+
+        words = iter_words_and_punctuation(self._tokens)
+
+        def word_after_equals():
+            n = next(words)
+            assert n.text == '='
+            res = next(words)
+            return res if isinstance(res, str) else res.text
+
+        while 1:
+            try:
+                word = next(words)
+                subcommand = None
+                if isinstance(word, str):
+                    subcommand = word.upper()
+                if subcommand in ['TRIANGLE', 'MISSING']:
+                    setattr(self, subcommand.lower(), word_after_equals())
+                elif subcommand in ['INTERLEAVE']:
+                    setattr(self, subcommand.lower(), True)
+                elif subcommand in ['NOLABELS', 'LABELS', 'NODIAGONAL', 'DIAGONAL']:
+                    setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
+            except StopIteration:
+                break
+        self.triangle = self.triangle.upper()
+
+
+class Taxlabels(taxa.Taxlabels):
+    """
+    This command allows specification of the names and ordering of the taxa. It serves to define
+    taxa and is allowed only if the NEWTAXA token is included in the DIMENSIONS statement.
+    """
+
+
+class Matrix(Payload):
+    """
+    This command contains the distance data.
+    """
 
 
 class Distances(Block):
-    pass
+    """
+    This block contains distance matrices. Taxa are usually not defined in a DISTANCES block; if
+    they are not, this block must be preceded by a block that defines taxon labels and ordering
+    (e.g., TAXA).
+    The syntax of the block is as follows:
+
+    .. rst-class:: nexus
+
+        | BEGIN DISTANCES;
+        |   [DIMENSIONS [NEWTAXA] NTAX=number-of-taxa NCHAR=number-of-characters;]
+        |   [FORMAT
+        |     [TRIANGLE={LOWER | UPPER | BOTH}]
+        |     [[NO]DIAGONAL]
+        |     [[NO]LABELS]
+        |     [MISSING=SYMBOL]
+        |     [INTERLEAVE]
+        |   ;]
+        |   [TAXLABELS taxon-name [taxon-name...];]
+        |   MATRIX distance-matrix ;
+        | END;
+
+    Commands must appear in the order listed. Only one of each command is allowed per block.
+    """
+    __commands__ = [Dimensions, Format, Taxlabels, Matrix]
+
+    def get_matrix(self):
+        format = self.FORMAT or Format(None)
+
+        ntax, taxlabels = None, {}
+        if self.TAXLABELS:
+            taxlabels = self.TAXLABELS.labels
+            ntax = self.DIMENSIONS.ntax
+        elif self.nexus.TAXA:
+            taxlabels = self.nexus.TAXA.TAXLABELS.labels
+            ntax = self.nexus.TAXA.DIMENSIONS.ntax
+
+        res = collections.OrderedDict()
+        label, entries = None, []
+
+        def required_cols():
+            if format.triangle == 'BOTH':
+                ncols = ntax
+            elif format.triangle == 'LOWER':
+                ncols = 1 if not res else len(list(res.values())[-1]) + (2 if format.diagonal is False else 1)
+            else:
+                ncols = ntax - len(list(res.values()))
+            if format.diagonal is False:
+                ncols -= 1
+            return ncols
+
+        for i, line in enumerate(
+                list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
+                start=1):
+            words = iter_words_and_punctuation(line)
+
+            if format.labels is False and required_cols() == 0:
+                res[1] = []
+
+            while 1:
+                try:
+                    t = next(words)
+                    if (format.labels is not False) and label is None:
+                        assert isinstance(t, str)
+                        label = t
+                        if format.diagonal is False and not format.interleave and not res:
+                            res[label] = []
+                            label = None
+                        continue
+
+                    #
+                    # FIXME: MISSING!
+                    #
+                    entries.append(decimal.Decimal(t))
+
+                    if not format.interleave and (len(entries) == required_cols()):
+                        res[label or (len(res) + 1)] = entries
+                        label, entries = None, []
+                except StopIteration:
+                    break
+            if format.interleave:
+                key = label or (i % ntax or ntax)
+                if key not in res:
+                    res[key] = []
+                res[key].extend(entries)
+                label, entries = None, []
+
+        if format.labels is False:
+            assert taxlabels
+        elif not taxlabels:
+            taxlabels = {i: label for i, label in enumerate(res, start=1)}
+
+        if format.triangle == 'UPPER':
+            for i, key in enumerate(res):
+                res[key] = [None] * i + res[key]
+
+        matrix = collections.OrderedDict([
+            (label, collections.OrderedDict([(ll, None) for ll in taxlabels.values()]))
+            for label in taxlabels.values()])
+
+        #
+        # FIXME: MISSING!
+        #
+        for (na, la), (nb, lb) in itertools.combinations_with_replacement(taxlabels.items(), r=2):
+            if na == nb and format.diagonal is False:
+                matrix[la][lb] = 0
+                continue
+            if format.triangle == 'BOTH':
+                matrix[la][lb] = res[la][nb - 1]
+                matrix[lb][la] = res[lb][na - 1]
+            else:
+                # nb >= na!
+                val = res[la][nb - 1] if format.triangle == 'UPPER' else res[lb][na -1]
+                if nb != na:
+                    matrix[la][lb] = matrix[lb][la] = val
+                else:
+                    matrix[la][lb] = val
+
+        return matrix

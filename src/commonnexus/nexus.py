@@ -3,67 +3,11 @@ import pathlib
 import itertools
 import collections
 
-from ._compat import cached_property
-from .tokenizer import TokenType, iter_tokens, Token, get_name
+from .tokenizer import TokenType, iter_tokens, get_name
+from commonnexus.command import Command
 from commonnexus.blocks import Block
 
 NEXUS = '#NEXUS'
-
-
-class Command(tuple):
-    """
-    From the specification:
-
-        A command is a collection of tokens terminated by a semicolon. Commands cannot contain
-        semicolons, except as terminators, unless the semicolons are contained within a comment
-        or within a quoted token consisting of more than one text character.
-    """
-    @cached_property
-    def name(self):
-        return get_name(self)
-
-    @classmethod
-    def from_name_and_payload(cls, name, payload=''):
-        tokens = [Token('\n', TokenType.WHITESPACE)]
-        name = list(iter_tokens(iter(name)))
-        assert len(name) == 1 and name[0].type == TokenType.WORD
-        tokens.extend(name)
-        semicolons = 0
-        if payload:
-            tokens.append(Token(' ', TokenType.WHITESPACE))
-            payload = list(iter_tokens(iter(payload)))
-            semicolons = len([t for t in payload if t.is_semicolon])
-            assert semicolons == 0 or (semicolons == 1 and payload[-1].is_semicolon)
-            tokens.extend(payload)
-        if semicolons == 0:
-            tokens.append(Token(';', TokenType.PUNCTUATION))
-        return cls(tokens)
-
-    @property
-    def is_beginblock(self):
-        return self.name == 'BEGIN'
-
-    @property
-    def is_endblock(self):
-        # In MacClade, PAUP, and COMPONENT, the ENDBLOCK command has been used as
-        # a synonym of the END command.
-        return self.name in ['END', 'ENDBLOCK']
-
-    def iter_payload_tokens(self, type=None):
-        found = False
-        for t in itertools.dropwhile(
-                lambda t: t.type != TokenType.WHITESPACE,
-                itertools.dropwhile(
-                    lambda t: t.type in {TokenType.WHITESPACE, TokenType.COMMENT}, self[:-1])):
-            if not found and t.type == TokenType.WHITESPACE:
-                # Drop the first whitespace token, too.
-                continue
-            found = True
-            if type is None or (type == t.type):
-                yield t
-
-    #def payload(self, cls=Payload):
-        #return cls(tuple(self.iter_payload_tokens()))
 
 
 class Nexus(list):
@@ -129,6 +73,10 @@ class Nexus(list):
         with p.open(encoding='utf8') as f:
             return cls(itertools.chain.from_iterable(f))
 
+    def to_file(self, p):
+        p = pathlib.Path(p)
+        p.write_text(str(self), encoding='utf8')
+
     def __str__(self):
         return NEXUS \
             + ''.join(''.join(str(t) for t in cmd) for cmd in self) \
@@ -178,12 +126,9 @@ class Nexus(list):
         for cmd in block:
             self.remove(cmd)
 
-    def append_block(self, name, cmds):
-        all_commands = [Command.from_name_and_payload('BEGIN', name)]
-        for n, payload in cmds:
-            all_commands.append(Command.from_name_and_payload(n, payload))
-        all_commands.append(Command.from_name_and_payload('END'))
-        self.extend(all_commands)
+    def append_block(self, block):
+        block.nexus = self
+        self.extend(block)
 
     def replace_block(self, block, cmds):
         for i, cmd in enumerate(self):
@@ -200,9 +145,20 @@ class Nexus(list):
         self.insert(self.index(block[-1]), Command.from_name_and_payload(name, payload))
 
     def __getattribute__(self, name):
+        """
+        NEXUS does not make any prescriptions regarding how many blocks with the same name may
+        exist in a file. Thus, the primary way to access blocks is by looking up the list of blocks
+        for a given name in :meth:`Nexus.blocks <Nexus.blocks>`. If it can be assumed that just one
+        block for a name exists, or only the first block with that name is of interest, this block
+        can also be accessed as `Nexus.<BLOCK_NAME>`, i.e. using the uppercase block name as
+        attribute of the `Nexus` instance.
+
+        :param name:
+        :return:
+        """
         if name.isupper():
             try:
                 return self.blocks[name][0]
             except IndexError:
-                raise AttributeError('Nexus has no block {}'.format(name))
+                return None
         return list.__getattribute__(self, name)

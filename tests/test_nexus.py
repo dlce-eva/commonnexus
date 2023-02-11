@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from commonnexus import Nexus
+from commonnexus import Nexus, Block
 from commonnexus.tokenizer import TokenType
 
 
@@ -77,17 +77,14 @@ def test_Nexus(nex, expect, fixture_dir):
 
 def test_Nexus_modification():
     nex = Nexus()
-    with pytest.raises(AttributeError):
-        _ = nex.BLOCK
-    nex.append_block('BLOCK', [('cmd', 'stuff')])
+    assert nex.BLOCK is None
+    nex.append_block(Block.from_commands([('CMD', 'stuff')]))
     assert str(nex.BLOCK.CMD) == 'stuff'
-    with pytest.raises(AttributeError):
-        _ = nex.BLOCK.OTHER
+    assert nex.BLOCK.OTHER is None
     nex.append_command(nex.BLOCK, 'other')
     assert nex.BLOCK.OTHER
     nex.remove_block(nex.BLOCK)
-    with pytest.raises(AttributeError):
-        _ = nex.BLOCK
+    assert nex.BLOCK is None
 
 
 def test_Nexus_replace_block():

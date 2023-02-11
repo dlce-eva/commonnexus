@@ -1,7 +1,7 @@
 import typing
 import collections
 
-from newick import Token, NewickString, Node
+from newick import Token, NewickString, Node, loads
 
 from .base import Payload, Block
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word
@@ -308,3 +308,27 @@ class Trees(Block):
         node = tree.newick_node if isinstance(tree, Tree) else tree
         node.visit(rename)
         return node
+
+    @classmethod
+    def from_data(cls, *tree_specs, **translate_labels) -> 'Trees':
+        nexus = translate_labels.pop('nexus', None)
+        cmds = []
+        detranslate = {v: k for k, v in translate_labels.items()}
+
+        def rename(n):
+            if n.name in detranslate:
+                n.name = detranslate[n.name]
+
+        if translate_labels:
+            cmds.append((
+                'TRANSLATE',
+                ',\n'.join('{} {}'.format(Word(k).as_nexus_string(), Word(v).as_nexus_string())
+                           for k, v in sorted(translate_labels.items()))
+            ))
+        for name, newick, rooted in tree_specs:
+            if isinstance(newick, str):
+                newick = loads(newick)[0]
+            if translate_labels:
+                newick.visit(rename)
+            cmds.append(('TREE', Tree.format(name, newick, rooted)))
+        return cls.from_commands(nexus, cmds)
