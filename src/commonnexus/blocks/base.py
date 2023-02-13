@@ -53,7 +53,7 @@ class Block(tuple):
                 return self.commands[name][0]
             except IndexError:
                 return None
-        return tuple.__getattribute__(self, name)
+        return super().__getattribute__(name)
 
     @cached_property
     def name(self):
@@ -108,10 +108,13 @@ class Block(tuple):
             >>> str(nex.MYBLOCK.MYCOMMAND)
             'with data'
         """
-        cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper())]
+        kw = {}
+        if nexus:
+            kw['quote'] = nexus.cfg.quote
+        cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper(), **kw)]
         for cname, payload in commands:
-            cmds.append(Command.from_name_and_payload(cname, payload))
-        cmds.append(Command.from_name_and_payload('END'))
+            cmds.append(Command.from_name_and_payload(cname, payload, **kw))
+        cmds.append(Command.from_name_and_payload('END', **kw))
         return cls(nexus, tuple(cmds))
 
     @classmethod

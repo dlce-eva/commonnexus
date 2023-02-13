@@ -2,7 +2,9 @@ import collections
 import types
 
 from .base import Block, Payload
-from commonnexus.tokenizer import iter_words_and_punctuation, Token, iter_delimited, iter_lines
+from commonnexus.tokenizer import (
+    iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN,
+)
 from .taxa import Taxlabels
 
 GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
@@ -74,6 +76,9 @@ class Dimensions(Payload):
                     self.nchar = int(next(words))
             except StopIteration:
                 break
+        self.check()
+
+    def check(self):
         assert self.nchar and ((not self.newtaxa) or self.ntax)
 
 
@@ -305,12 +310,20 @@ class Format(Payload):
             res = next(words)
             return res if isinstance(res, str) else res.text
 
+        subcommand = None
         while 1:
             try:
                 word = next(words)
-                subcommand = None
                 if isinstance(word, str):
                     subcommand = word.upper()
+                elif isinstance(word, Token) and word.text == '=':
+                    if subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE', 'LABELS', 'TOKENS']:
+                        # Some NEXUS variants set boolean subcommands always with "=no|yes"
+                        word = next(words)  # FIXME: also deal with "labels=left"?
+                        setattr(self, subcommand.lower(), BOOLEAN[word.lower()])
+                    elif subcommand:
+                        raise ValueError(subcommand)
+
                 if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
                     setattr(self, subcommand.lower(), word_after_equals())
                 elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:

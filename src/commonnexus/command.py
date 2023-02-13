@@ -1,7 +1,7 @@
 import itertools
 
 from ._compat import cached_property
-from .tokenizer import TokenType, iter_tokens, Token, get_name
+from .tokenizer import TokenType, iter_tokens, Token, get_name, QUOTE
 
 
 class Command(tuple):
@@ -17,20 +17,20 @@ class Command(tuple):
         return get_name(self)
 
     @classmethod
-    def from_name_and_payload(cls, name, payload=''):
-        tokens = [Token('\n', TokenType.WHITESPACE)]
+    def from_name_and_payload(cls, name, payload='', quote=QUOTE):
+        tokens = [Token('\n', TokenType.WHITESPACE, quote)]
         name = list(iter_tokens(iter(name)))
         assert len(name) == 1 and name[0].type == TokenType.WORD
         tokens.extend(name)
         semicolons = 0
         if payload:
-            tokens.append(Token(' ', TokenType.WHITESPACE))
+            tokens.append(Token(' ', TokenType.WHITESPACE, quote))
             payload = list(iter_tokens(iter(payload)))
             semicolons = len([t for t in payload if t.is_semicolon])
             assert semicolons == 0 or (semicolons == 1 and payload[-1].is_semicolon)
             tokens.extend(payload)
         if semicolons == 0:
-            tokens.append(Token(';', TokenType.PUNCTUATION))
+            tokens.append(Token(';', TokenType.PUNCTUATION, quote))
         return cls(tokens)
 
     @property

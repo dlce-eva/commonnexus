@@ -3,11 +3,20 @@ import pathlib
 import itertools
 import collections
 
-from .tokenizer import TokenType, iter_tokens, get_name
+from .tokenizer import TokenType, iter_tokens, get_name, Word
 from commonnexus.command import Command
 from commonnexus.blocks import Block
 
+__all__ = ['Config', 'Nexus']
+
 NEXUS = '#NEXUS'
+
+
+class Config:
+    def __init__(self, quote="'", hyphenminus_is_text=False, encoding='utf8'):
+        self.quote = quote
+        self.hyphenminus_is_text = hyphenminus_is_text
+        self.encoding = encoding
 
 
 class Nexus(list):
@@ -38,13 +47,20 @@ class Nexus(list):
     """
     def __init__(self,
                  s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
-                 block_implementations=None):
+                 block_implementations=None,
+                 config=None):
+        self.cfg = config or Config()
         self.trailing_whitespace = []
         #
         # FIXME: We must recurse into subclasses of subclasses to get aliases such as Data for
         # Characters!
         #
-        self.block_implementations = {cls.__name__.upper(): cls for cls in Block.__subclasses__()}
+        self.block_implementations = {}
+        for cls in Block.__subclasses__():
+            self.block_implementations[cls.__name__.upper()] = cls
+            for scls in cls.__subclasses__():
+                self.block_implementations.setdefault(scls.__name__.upper(), scls)
+
         self.block_implementations.update(block_implementations or {})
         s = s or NEXUS
 
@@ -54,7 +70,7 @@ class Nexus(list):
         if not isinstance(s, list):
             nexus, commands, tokens = False, [], []
             for token in itertools.dropwhile(
-                    lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s)):
+                    lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s, quote=self.cfg.quote)):
                 if not nexus:
                     assert token.type == TokenType.WORD and token.text.upper() == NEXUS
                     nexus = True
@@ -67,15 +83,29 @@ class Nexus(list):
             s = commands
         list.__init__(self, s)
 
+    def word_as_nexus_string(self, word):
+        return Word(word).as_nexus_string(self.cfg.quote)
+
     @classmethod
-    def from_file(cls, p):
+    def from_file(cls, p, config=None, **kw):
+        config = config or Config(**kw)
         p = pathlib.Path(p)
-        with p.open(encoding='utf8') as f:
-            return cls(itertools.chain.from_iterable(f))
+        not_utf8 = False
+        with p.open(encoding=config.encoding) as f:
+            try:
+                return cls(itertools.chain.from_iterable(f), config=config)
+            except UnicodeDecodeError:
+                not_utf8 = config.encoding == 'utf8'
+        if not_utf8:
+            # We don't want to do a lot of guessing, but if the default encoding was tried and
+            # didn't work, we try with the old-time favourite "latin1":
+            config.encoding = 'latin1'
+            with p.open(encoding=config.encoding) as f:
+                return cls(itertools.chain.from_iterable(f), config=config)
 
     def to_file(self, p):
         p = pathlib.Path(p)
-        p.write_text(str(self), encoding='utf8')
+        p.write_text(str(self), encoding=self.cfg.encoding)
 
     def __str__(self):
         return NEXUS \
@@ -139,10 +169,12 @@ class Nexus(list):
         for cmd in block[1:-1]:
             self.remove(cmd)
         for n, payload in reversed(cmds):
-            self.insert(i + 1, Command.from_name_and_payload(n, payload))
+            self.insert(i + 1, Command.from_name_and_payload(n, payload, quote=self.cfg.quote))
 
     def append_command(self, block, name, payload=None):
-        self.insert(self.index(block[-1]), Command.from_name_and_payload(name, payload))
+        self.insert(
+            self.index(block[-1]),
+            Command.from_name_and_payload(name, payload, quote=self.cfg.quote))
 
     def __getattribute__(self, name):
         """

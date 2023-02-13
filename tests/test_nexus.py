@@ -2,7 +2,7 @@ import logging
 
 import pytest
 
-from commonnexus import Nexus, Block
+from commonnexus import Nexus, Block, Config
 from commonnexus.tokenizer import TokenType
 
 
@@ -120,30 +120,32 @@ def test_Nexus_validate(caplog):
     assert len(caplog.records) == 1
 
 
-"""
-#NEXUS
-BEGIN TAXA;
-DIMENSIONS NTAX = 4 ;
-TAXLABELS fish frog snake mouse;
-END;
-BEGIN CHARACTERS;
-DIMENSIONS NCHAR=2 0;
-FORMAT DATATYPE = DNA;
-MATRIX
-fish ACATA GAGGG TACCT CTAAG
-frog ACTTA GAGGC TACCT CTACG
-snake ACTCA CTGGG TACCT TTGCG
-mouse ACTCA GACGG TACCT TTGCG;
-END;
-BEGIN TREES;
-TREE best = (fish,(frog,
-(snake, mouse))) ;
-END; 
+def test_Config(fixture_dir):
+    nex = Nexus.from_file(fixture_dir / 'christophchamp_basic.nex', config=Config(quote='"'))
+    assert nex.TREES.TREE.name == 'basic bush'
+    assert nex.word_as_nexus_string('basic bush') == '"basic bush"'
 
 
-PICTURE TAXON=1 FORMAT=GIF ENCODE=UUENCODE SOURCE=INLINE
-PICTURE=
-'begin 644 tree.GIF
-e n d ' ;
+def test_encoding_guesser(fixture_dir):
+    nex = Nexus.from_file(fixture_dir / 'encoding.nex')
+    assert nex.cfg.encoding == 'latin1'
 
-"""
+
+def test_Booleans_With_Values(fixture_dir):
+    nex = Nexus.from_file(fixture_dir / 'christophchamp_dna.nex', config=Config(quote='"'))
+    assert nex.DATA.FORMAT.interleave
+    assert len(nex.DATA.get_matrix()['Cow']) == 705
+
+
+#def test_dendropy_suite(fixture_dir):
+#    from clldutils.path import walk
+
+#    def do_test(p):
+#        n = Nexus.from_file(p)
+
+#    for p in walk(fixture_dir / '..' / 'dendropy_test_data', 'files'):
+#        try:
+#            if '#NEXUS' in p.read_text(encoding='utf8'):
+#                do_test(p)
+#        except:
+#            pass

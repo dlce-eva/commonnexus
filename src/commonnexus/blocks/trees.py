@@ -4,7 +4,7 @@ import collections
 from newick import Token, NewickString, Node, loads
 
 from .base import Payload, Block
-from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word
+from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, QUOTE
 
 
 class Translate(Payload):
@@ -171,13 +171,16 @@ class Tree(Payload):
         self._nn = None
 
     @staticmethod
-    def format(name: str, newick_node: Node, rooted: typing.Optional[bool] = None) -> str:
+    def format(name: str,
+               newick_node: Node,
+               rooted: typing.Optional[bool] = None,
+               quote=QUOTE) -> str:
         """
         Returns a representation of a tree as NEXUS string, suitable as payload of a ``TREE``
         command.
         """
         return '{} = {}{}'.format(
-            Word(name).as_nexus_string(),
+            Word(name).as_nexus_string(quote=quote),
             '' if rooted is None else '[&{}] '.format('R' if rooted else 'U'),
             newick_node.newick)
 
@@ -312,6 +315,7 @@ class Trees(Block):
     @classmethod
     def from_data(cls, *tree_specs, **translate_labels) -> 'Trees':
         nexus = translate_labels.pop('nexus', None)
+        quote = QUOTE if nexus is None else nexus.cfg.quote
         cmds = []
         detranslate = {v: k for k, v in translate_labels.items()}
 
@@ -322,7 +326,9 @@ class Trees(Block):
         if translate_labels:
             cmds.append((
                 'TRANSLATE',
-                ',\n'.join('{} {}'.format(Word(k).as_nexus_string(), Word(v).as_nexus_string())
+                ',\n'.join('{} {}'.format(
+                    Word(k).as_nexus_string(quote=quote),
+                    Word(v).as_nexus_string(quote=quote))
                            for k, v in sorted(translate_labels.items()))
             ))
         for name, newick, rooted in tree_specs:

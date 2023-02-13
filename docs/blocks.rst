@@ -48,3 +48,25 @@ Trees
 .. automodule:: commonnexus.blocks.trees
     :members:
     :exclude-members: Trees
+
+
+Distances
+---------
+
+.. autoclass:: commonnexus.blocks.distances.Distances
+    :members:
+
+.. automodule:: commonnexus.blocks.distances
+    :members:
+    :exclude-members: Distances
+
+
+Notes
+-----
+
+.. autoclass:: commonnexus.blocks.notes.Notes
+    :members:
+
+.. automodule:: commonnexus.blocks.notes
+    :members:
+    :exclude-members: Notes
