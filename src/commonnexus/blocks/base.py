@@ -1,9 +1,12 @@
 import re
 import collections
+import types
 import typing
 
 from commonnexus._compat import cached_property
-from commonnexus.tokenizer import get_name, iter_tokens
+from commonnexus.tokenizer import (
+    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals,
+)
 from commonnexus.command import Command
 
 
@@ -13,7 +16,8 @@ class Payload:
     """
     __multivalued__ = False
 
-    def __init__(self, tokens):
+    def __init__(self, tokens, nexus=None):
+        self.nexus = nexus
         self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
 
     def format(self, *args, **kw):
@@ -28,6 +32,31 @@ class Payload:
     @property
     def lines(self):
         return re.split(r'[\t\r ]*\n[\t\r ]*', str(self))
+
+
+class Title(Payload):
+    """
+    Support for Mesquite's mechanism to link blocks.
+
+    https://phylo.bio.ku.edu/slides/lab9-MesquiteAncStatesBisse/09-Mesquite.html#Create_a_tree_file
+    """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        self.title = next(iter_words_and_punctuation(self._tokens)).upper()
+        assert isinstance(self.title, str)
+
+
+class Link(Payload):
+    """
+    Support for Mesquite's mechanism to link blocks.
+
+    https://phylo.bio.ku.edu/slides/lab9-MesquiteAncStatesBisse/09-Mesquite.html#Create_a_tree_file
+    """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        words = iter_words_and_punctuation(self._tokens)
+        self.block = next(words).upper()
+        self.title = word_after_equals(words).upper()
 
 
 class Block(tuple):
@@ -45,7 +74,27 @@ class Block(tuple):
 
     @cached_property
     def payload_map(self):
-        return {cls.__name__.upper(): cls for cls in self.__commands__}
+        res = {cls.__name__.upper(): cls for cls in self.__commands__}
+        res.update(LINK=Link, TITLE=Title)
+        return res
+
+    @property
+    def title(self):
+        if self.TITLE:
+            return self.TITLE.title
+
+    @property
+    def links(self):
+        return {link.block: link.title for link in self.commands['LINK']}
+
+    @property
+    def linked_blocks(self):
+        res = {}
+        for name, title in self.links.items():
+            for block in self.nexus.blocks.get(name, []):
+                if block.title == title:
+                    res[name] = block
+        return res
 
     def __getattribute__(self, name):
         if name.isupper():
@@ -65,7 +114,7 @@ class Block(tuple):
         for cmd in self:
             if not (cmd.is_beginblock or cmd.is_endblock):
                 cls = self.payload_map.get(cmd.name, Payload)
-                res[cmd.name].append(cls(tuple(cmd.iter_payload_tokens())))
+                res[cmd.name].append(cls(tuple(cmd.iter_payload_tokens()), nexus=self.nexus))
         return res
 
     def validate(self, log=None):

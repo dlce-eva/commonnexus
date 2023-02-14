@@ -13,9 +13,14 @@ NEXUS = '#NEXUS'
 
 
 class Config:
-    def __init__(self, quote="'", hyphenminus_is_text=False, encoding='utf8'):
+    def __init__(self,
+                 quote="'",
+                 hyphenminus_is_text=False,
+                 validate_newick=False,
+                 encoding='utf8'):
         self.quote = quote
         self.hyphenminus_is_text = hyphenminus_is_text
+        self.validate_newick=validate_newick
         self.encoding = encoding
 
 

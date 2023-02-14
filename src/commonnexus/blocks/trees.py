@@ -1,7 +1,7 @@
 import typing
 import collections
 
-from newick import Token, NewickString, Node, loads
+import newick
 
 from .base import Payload, Block
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, QUOTE
@@ -48,8 +48,8 @@ class Translate(Payload):
         The ``TRANSLATE`` data is typically not accessed directly, but just used implicitly when
         calling :meth:`Trees.translate`.
     """
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         # get a word, and another word, then look for comma.
         self.mapping = collections.OrderedDict()
         key, value = None, None
@@ -122,15 +122,14 @@ class Tree(Payload):
     :ivar str name: The name of the tree.
     :ivar typing.Union[bool, None] rooted: Flag indicating whether the tree is rooted (or `None` \
     if no information is given)
-    :ivar str newick_string: The tree description formatted as Newick string.
-    :ivar newick.Node newick_node: The tree description as `newick.Node`.
+    :ivar newick.Node newick: The tree description as `newick.Node`.
 
     .. code-block:: python
 
         >>> tree = Tree('tree4= (((Bluebird)Archaeopteryx,Crocodile)Archosauria,Rattlesnake)')
         >>> tree.name
         'tree4'
-        >>> print(tree.newick_node.ascii_art())
+        >>> print(tree.newick.ascii_art())
                                         ┌─Archaeopteryx ──Bluebird
                         ┌─Archosauria───┤
         ────────────────┤               └─Crocodile
@@ -138,8 +137,8 @@ class Tree(Payload):
     """
     __multivalued__ = True
 
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         # We parse tree name and rooting information right away.
         self.name, e, self._rooted, nwk = None, False, None, False
 
@@ -172,7 +171,7 @@ class Tree(Payload):
 
     @staticmethod
     def format(name: str,
-               newick_node: Node,
+               newick_node: newick.Node,
                rooted: typing.Optional[bool] = None,
                quote=QUOTE) -> str:
         """
@@ -190,49 +189,52 @@ class Tree(Payload):
             return self._rooted == '&R'
 
     @property
-    def newick_string(self):
-        if not self._ns:
-            self._parse_newick()
-        return self._ns
-
-    @property
-    def newick_node(self):
+    def newick(self):
         if not self._nn:
-            self._parse_newick()
+            self._nn = self._parse_newick()
         return self._nn
 
     def _parse_newick(self):
         # Read newick string and `newick.Node` object lazily.
-        ns, l = ['('], 1
-        nt = [Token('(', False, 0, 0, True, False, False, False)]
+        if self.nexus and self.nexus.cfg.validate_newick:
+            # More correct, but slower: Let the newick parser validate the data.
+            return newick.loads('(' + ''.join(str(t) for t in self._remaining_tokens))[0]
+        # Quicker but by-passes some validation: Instantiate NewickString from pre-parsed Nexus
+        # tokens!
+        nt = [newick.Token('(', newick.TokenType.OBRACE, 0)]
+        word, l = [], 1
 
         for token in self._remaining_tokens:
             # now we assemble newick string and newick tokens in one go.
             if token.type == TokenType.WORD:
-                ns.append(token.text)
-                nt.extend([Token(c, False, 0, l, True, False, False, False) for c in token.text])
+                word.append(token.text)
             elif token.type == TokenType.PUNCTUATION:
-                ns.append(token.text)
-                if token.text == ')':
-                    l -= 1
-                nt.append(Token(token.text, False, 0, l, True,
-                                token.text == ',', token.text == ':', False))
-                if token.text == '(':
-                    l += 1
+                if token.text in newick.RESERVED_PUNCTUATION:
+                    # delimits words!
+                    if word:
+                        nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+                        word = []
+                    if token.text == ')':
+                        l -= 1
+                    nt.append(newick.Token(token.text, newick.RESERVED_PUNCTUATION[token.text], l))
+                    if token.text == '(':
+                        l += 1
+                else:
+                    word.append(token.text)
             elif token.type == TokenType.COMMENT:
-                nt.append(Token('[', False, 1, l, False, False, False, False))
-                for c in token.text:
-                    nt.append(Token(c, False, 1, l, False, False, False, False))
-                nt.append(Token(']', False, 1, l, False, False, False, False))
+                if word:
+                    nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+                    word = []
+                nt.append(newick.Token('[' + token.text + ']', newick.TokenType.COMMENT, l))
             elif token.type == TokenType.QWORD:
-                nt.append(Token("'", True, 0, l, False, False, False, False))
-                for c in token.text:
-                    if c == "'":
-                        nt.append(Token("'", True, 0, l, False, False, False, False))
-                    nt.append(Token(c, True, 0, l, False, False, False, False))
-                nt.append(Token(']', True, 0, l, False, False, False, False))
-        self._ns = ''.join(ns)
-        self._nn = NewickString(nt).to_node()
+                if word:
+                    nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+                    word = []
+                nt.append(
+                    newick.Token(Word(token.text).as_nexus_string(), newick.TokenType.QWORD, l))
+        if word:
+            nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+        return newick.NewickString(nt).to_node()
 
 
 class Trees(Block):
@@ -273,7 +275,7 @@ class Trees(Block):
                 tree_seen = True
         return valid
 
-    def translate(self, tree: typing.Union[Tree, Node]) -> Node:
+    def translate(self, tree: typing.Union[Tree, newick.Node]) -> newick.Node:
         """
 
         :param tree:
@@ -292,7 +294,7 @@ class Trees(Block):
                 >>> for tree in untranslated.TREES.commands['TREE']:
                 ...     trees.append(Tree.format(
                 ...         tree.name,
-                ...         untranslated.TREES.translate(tree).newick_node,
+                ...         untranslated.TREES.translate(tree).newick,
                 ...         rooted=tree.rooted))
                 >>> untranslated.replace_block(
                 ...     untranslated.TREES, [('TREE', tree) for tree in trees])
@@ -301,14 +303,17 @@ class Trees(Block):
         mapping = {}
         if 'TRANSLATE' in self.commands:
             mapping.update(self.TRANSLATE.mapping)
-        if 'TAXA' in self.nexus.blocks and 'TAXLABELS' in self.nexus.TAXA.commands:
+        if 'TAXA' in self.linked_blocks:
+            mapping.update({
+                str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
+        elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
             mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
 
         def rename(n):
             if n.name in mapping:
                 n.name = mapping[n.name]
 
-        node = tree.newick_node if isinstance(tree, Tree) else tree
+        node = tree.newick if isinstance(tree, Tree) else tree
         node.visit(rename)
         return node
 
@@ -331,10 +336,10 @@ class Trees(Block):
                     Word(v).as_nexus_string(quote=quote))
                            for k, v in sorted(translate_labels.items()))
             ))
-        for name, newick, rooted in tree_specs:
-            if isinstance(newick, str):
-                newick = loads(newick)[0]
+        for name, nwk, rooted in tree_specs:
+            if isinstance(nwk, str):
+                nwk = newick.loads(nwk)[0]
             if translate_labels:
-                newick.visit(rename)
-            cmds.append(('TREE', Tree.format(name, newick, rooted)))
+                nwk.visit(rename)
+            cmds.append(('TREE', Tree.format(name, nwk, rooted)))
         return cls.from_commands(nexus, cmds)

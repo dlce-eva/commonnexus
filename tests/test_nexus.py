@@ -47,7 +47,7 @@ from commonnexus.tokenizer import TokenType
                 lambda n: str(n.TREES.commands['STUFF'][0]) == '(a[&comment]:1,b:2)c:3'),
         (
                 '#NEXUS begin trees; tree t = (a[&comment]:1,b:2)c:3; end trees;',
-                lambda n: [nn.name for nn in n.TREES.TREE.newick_node.walk() if nn.is_leaf] == ['a', 'b']),
+                lambda n: [nn.name for nn in n.TREES.TREE.newick.walk() if nn.is_leaf] == ['a', 'b']),
         # Test on "real" Nexus files:
         (
                 'ape_random.trees',
@@ -126,15 +126,23 @@ def test_Config(fixture_dir):
     assert nex.word_as_nexus_string('basic bush') == '"basic bush"'
 
 
-def test_encoding_guesser(fixture_dir):
+def test_encoding_guesser(fixture_dir, tmp_path):
     nex = Nexus.from_file(fixture_dir / 'encoding.nex')
     assert nex.cfg.encoding == 'latin1'
+    o = tmp_path / 'test.nex'
+    nex.to_file(o)
+    assert o.read_text(encoding='latin1') == str(nex)
 
 
 def test_Booleans_With_Values(fixture_dir):
     nex = Nexus.from_file(fixture_dir / 'christophchamp_dna.nex', config=Config(quote='"'))
     assert nex.DATA.FORMAT.interleave
     assert len(nex.DATA.get_matrix()['Cow']) == 705
+
+
+def test_Mesquite_multitaxa(fixture_dir):
+    nex = Nexus.from_file(fixture_dir / 'multitaxa_mesquite.nex')
+    assert [char.get_matrix() for char in nex.blocks['CHARACTERS']]
 
 
 #def test_dendropy_suite(fixture_dir):

@@ -13,18 +13,18 @@ END;
 BEGIN CHARACTERS;
     DIMENSIONS  NCHAR=3;
     FORMAT MISSING=? GAP=- SYMBOLS="AB C" EQUATE="x=(AB)y=B z=C" NOLABELS;
-    CHARSTATELABELS 1  CHAR_A,  2  CHAR_B,  3  CHAR_C;
+    CHARSTATELABELS 1  CHAR_A/astate,  2  CHAR_B,  3  CHAR_C/_ bstate cstate;
     MATRIX xBC ABC ABC;
 END;""")
     assert nex.CHARACTERS.DIMENSIONS.nchar == 3
     assert nex.CHARACTERS.FORMAT.gap == '-'
-    assert nex.CHARACTERS.FORMAT.symbols == set('ABC')
+    assert nex.CHARACTERS.FORMAT.symbols == list('ABC')
     assert nex.CHARACTERS.FORMAT.equate == dict(x=('A', 'B'), y='B', z='C')
     assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].name == 'CHAR_C'
-    assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].states == []
-    matrix = nex.CHARACTERS.get_matrix()
-    assert matrix['A']['CHAR_A'] == ('A', 'B')
-    assert matrix['C']['CHAR_C'] == 'C'
+    assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].states == ['_', 'bstate', 'cstate']
+    matrix = nex.CHARACTERS.get_matrix(labeled_states=True)
+    assert matrix['A']['CHAR_A'] == ('astate', 'B')
+    assert matrix['C']['CHAR_C'] == 'cstate'
 
 
 @pytest.mark.parametrize(

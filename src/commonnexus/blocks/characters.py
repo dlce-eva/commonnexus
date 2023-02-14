@@ -1,9 +1,11 @@
-import collections
 import types
+import functools
+import collections
+import typing
 
 from .base import Block, Payload
 from commonnexus.tokenizer import (
-    iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN,
+    iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN, word_after_equals,
 )
 from .taxa import Taxlabels
 
@@ -29,9 +31,8 @@ class Eliminate(Payload):
 
     .. warning:: The ``ELIMINATE`` command is currently not supported in ``commonnexus``.
     """
-
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
 
 
 class Dimensions(Payload):
@@ -51,9 +52,8 @@ class Dimensions(Payload):
     :ivar typing.Optional[int] ntax:
     :ivar int nchar:
     """
-
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.newtaxa = False
         self.ntax = None
         self.char = None
@@ -267,7 +267,7 @@ class Format(Payload):
     :ivar bool respectcase:
     :ivar str missing:
     :ivar typing.Optional[str] gap:
-    :ivar typing.Set[str] symbols:
+    :ivar typing.List[str] symbols:
     :ivar typing.Dict[str, str] equate:
     :ivar typing.Optional[str] matchchar:
     :ivar typing.Optional[bool] labels:
@@ -283,13 +283,13 @@ class Format(Payload):
         code. Instead, the information is accessed when reading the matrix data in
         :meth:`Characters.get_matrix`.
     """
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.datatype = None
         self.respectcase = False
         self.missing = '?'  # FIXME: one-character, most punctuation excluded
         self.gap = None
-        self.symbols = {'0', '1'}  # The default for DATATYPE=STANDARD
+        self.symbols = ['0', '1']  # The default for DATATYPE=STANDARD
         self.equate = {}
         self.matchchar = None
         self.labels = None
@@ -303,12 +303,7 @@ class Format(Payload):
             return
 
         words = iter_words_and_punctuation(self._tokens)
-
-        def word_after_equals():
-            n = next(words)
-            assert n.text == '='
-            res = next(words)
-            return res if isinstance(res, str) else res.text
+        after_equals = functools.partial(word_after_equals, words)
 
         subcommand = None
         while 1:
@@ -325,22 +320,22 @@ class Format(Payload):
                         raise ValueError(subcommand)
 
                 if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
-                    setattr(self, subcommand.lower(), word_after_equals())
+                    setattr(self, subcommand.lower(), after_equals())
                 elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
                     setattr(self, subcommand.lower(), True)
                 elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
                     setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
                 elif subcommand == 'SYMBOLS':
-                    self.symbols = set()
-                    for w in iter_delimited(word_after_equals(), words):
+                    self.symbols = []
+                    for w in iter_delimited(after_equals(), words):
                         if isinstance(w, str):
-                            self.symbols = self.symbols.union(list(w))
+                            self.symbols.extend(list(w))
                         else:
                             assert w.text in '+-'
-                            self.symbols.add(w.text)
+                            self.symbols.append(w.text)
                 elif subcommand == 'EQUATE':
                     key, e = None, False
-                    for t in iter_delimited(word_after_equals(), words):
+                    for t in iter_delimited(after_equals(), words):
                         if isinstance(t, Token) and t.text == '=':
                             assert key
                             e = True
@@ -356,7 +351,7 @@ class Format(Payload):
                                 key = t
                 elif subcommand == 'ITEMS':
                     for w in iter_delimited(
-                            word_after_equals(), words, delimiter='()', allow_single_word=True):
+                            after_equals(), words, delimiter='()', allow_single_word=True):
                         assert isinstance(w, str)
                         self.items.append(w)
             except StopIteration:
@@ -382,7 +377,7 @@ class Format(Payload):
 
         if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
             T = 'U' if self.datatype == 'RNA' else 'T'
-            self.symbols = self.symbols.union('ACG' + T)
+            self.symbols.extend(list('ACG' + T))
             self.equate.update(
                 R=set('AG'),
                 Y=set('C' + T),
@@ -400,7 +395,7 @@ class Format(Payload):
             if self.datatype == 'NUCLEOTIDE':
                 self.equate.update(U='T')
         elif self.datatype == 'PROTEIN':
-            self.symbols = self.symbols.union('ACDEFGHIKLMNPQRSTVWY*')
+            self.symbols.extend(list('ACDEFGHIKLMNPQRSTVWY*'))
             self.equate.update(B=set('DN'), Z=set('EQ'))
 
 
@@ -437,9 +432,8 @@ class Charstatelabels(Payload):
         >>> cmd.characters[0].states
         ['red', 'blue', 'green']
     """
-
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.characters = []
 
         words = iter_words_and_punctuation(self._tokens)
@@ -495,9 +489,8 @@ class Charlabels(Payload):
 
     :ivar typing.List[types.SimpleNamespace] characters:
     """
-
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.characters = []
         for i, w in enumerate(iter_words_and_punctuation(self._tokens)):
             assert isinstance(w, str)
@@ -519,25 +512,39 @@ class Statelabels(Payload):
             11 black rufous metallic flavous,
             12 straight concave,
 
-    (The single quotes that surround some of the state labels in this example are needed
-    to properly define the boundaries of the words; see the definition of word in the Appendix.)
     State labels need not be specified for all characters. A comma must separate state labels for
     each character. State labels are listed consecutively within a character. If state x is the
     last state to be named, then subsequent states need not be named, but states 1 through x must
     be. If no name is to be applied to a state, enter a single underscore for its name. State
-    names are single NEXUS words. This command is not valid for DATATYPE =CONTINUOUS.
+    names are single NEXUS words. This command is not valid for DATATYPE=CONTINUOUS.
     We recommend that programs abandon this command in place of the more flexible
     CHARSTATELABELS command when writing NEXUS files, although programs should continue to read
     STATELABELS because many existing NEXUS files use STATELABELS.
 
     :ivar typing.List[types.SimpleNamespace] characters:
     """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        self.characters = []
 
-    def __init__(self, tokens):
-        super().__init__(tokens)
-        #
-        # FIXME: incomplete
-        #
+        words = iter_words_and_punctuation(self._tokens)
+        num, states = None, []
+
+        while 1:
+            try:
+                w = next(words)
+                if num is None:
+                    num = int(w)
+                    continue
+                if isinstance(w, Token) and w.text == ',':
+                    self.characters.append(
+                        types.SimpleNamespace(number=num, name=None, states=states))
+                    num, states = None, []
+                    continue
+                assert isinstance(w, str)
+                states.append(w)
+            except StopIteration:
+                break
 
 
 class Matrix(Payload):
@@ -685,7 +692,7 @@ class Characters(Block):
     .. rst-class:: nexus
 
         | BEGIN CHARACTERS;
-        |   :class:`DIMENSIONS <Dimensions>` [NEWTAXA NTAX=number-of-taxa] NCHAR=number-of-characters;
+        |   :class:`DIMENSIONS <Dimensions>` [NEWTAXA NTAX=num-taxa] NCHAR=num-characters;
         |   [:class:`FORMAT <Format>`
         |       [DATATYPE = { STANDARD| DNA | RNA | NUCLEOTIDE | PROTEIN | CONTINUOUS} ]
         |       [RESPECTCASE]
@@ -716,14 +723,27 @@ class Characters(Block):
         | END;
 
     :class:`DIMENSIONS <Dimensions>`, :class:`FORMAT <Format>`, and :class:`ELIMINATE <Eliminate>`
-    must all precede :class:`CHARLABELS <Charlabels>`, :class:`CHARSTATELABELS <Charstatelabels>`, :class:`STATELABELS <Statelabels>`,
-    and :class:`MATRIX <Matrix>`.
-    :class:`DIMENSIONS <Dimensions>` must precede :class:`ELIMINATE <Eliminate>`. Only one of each command is allowed per block.
+    must all precede :class:`CHARLABELS <Charlabels>`, :class:`CHARSTATELABELS <Charstatelabels>`,
+    :class:`STATELABELS <Statelabels>`, and :class:`MATRIX <Matrix>`.
+    :class:`DIMENSIONS <Dimensions>` must precede :class:`ELIMINATE <Eliminate>`.
+    Only one of each command is allowed per block.
     """
     __commands__ = [
         Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
 
-    def get_matrix(self):
+    def get_matrix(self, labeled_states: bool = False) \
+            -> typing.OrderedDict[str, typing.OrderedDict[str, typing.Union[None, str]]]:
+        """
+        :param labeled_states: Flag signaling whether state symbols should be translated to state \
+        labels (if available).
+        :return: The values of the matrix, read according to FORMAT. The matrix is returned as \
+        ordered `dict`, mapping taxon labels (if available, else numbers) to ordered `dict`s \
+        mapping character labels (if available, else numbers) to state values. State values are \
+        either atomic values (of type `str`) or `tuple`s (indicating polymorphism) or `set`s \
+        (indicating uncertainty) of atomic values. Atomic values may be `None` (indicating missing \
+        data), the special string `GAP` (indicating gaps) or state symbols or labels (if available \
+        and explicitly requested via `labeled_states=True`).
+        """
         format = Format(None) if 'FORMAT' not in self.commands else self.FORMAT
 
         if format.datatype == 'CONTINUOUS' or \
@@ -733,28 +753,11 @@ class Characters(Block):
                 (format.statesformat and format.statesformat != 'STATESPRESENT'):
             raise NotImplementedError()
 
-        ntax, taxlabels = None, {}
-        nchar, charlabels = self.DIMENSIONS.nchar, \
-            {i + 1: str(i + 1) for i in range(self.DIMENSIONS.nchar)}
-        if self.CHARSTATELABELS:
-            charlabels = {
-                int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
-
-        #
-        # FIXME: read charlabels from CHARLABELS and CHARSTATELABELS
-        #
-        if self.TAXLABELS:
-            taxlabels = self.TAXLABELS.labels
-            ntax = self.DIMENSIONS.ntax
-        elif self.nexus.TAXA:
-            taxlabels = self.nexus.TAXA.TAXLABELS.labels
-            ntax = self.nexus.TAXA.DIMENSIONS.ntax
-
-        if format.interleave and format.labels is False and not format.transpose:
-            # If the matrix has no row labels and is not transposed, we need the number of taxa to
-            # compute the size of the interleaved blocks.
-            assert ntax
-            taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
+        # Determine dimensions and labels:
+        ntax, taxlabels = self.get_taxlabels(format)
+        nchar = self.DIMENSIONS.nchar
+        charlabels, statelabels = self.get_charstatelabels(
+            nchar, format, labeled_states=labeled_states)
 
         # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
         # ordered dictionary mapping row labels (or numbers) to lists of entries.
@@ -808,6 +811,17 @@ class Characters(Block):
             else:
                 taxlabels = {i + 1: key for i, key in enumerate(res)}
 
+        def apply_to_state(func, state, *args, **kw):
+            # We have to do a bit of mapping and renaming, which always needs to deal with the
+            # three different types of state.
+            if isinstance(state, str):
+                return func(state, *args, **kw)
+            if isinstance(state, tuple):
+                return tuple(func(s, *args, **kw) for s in state)
+            if isinstance(state, set):
+                return set(func(s, *args, **kw) for s in state)
+            raise ValueError(state)
+
         def replace_symbol(s, i, r):
             if (format.respectcase and s == format.missing) or \
                     (not format.respectcase and (s.upper() == format.missing.upper())):
@@ -826,30 +840,19 @@ class Characters(Block):
 
         def resolve_symbols(s, i, r):
             def resolve(c, i, r):
-                c = format.equate.get(c, c)
-                if isinstance(c, str):
-                    return replace_symbol(c, i, r)
-                if isinstance(c, tuple):
-                    return tuple(replace_symbol(cc, i, r) for cc in c)
-                if isinstance(c, set):
-                    return set(replace_symbol(cc, i, r) for cc in c)
-                raise ValueError(c)
-
-            if isinstance(s, str):
-                return resolve(s, i, r)
-            if isinstance(s, tuple):
-                return tuple(resolve(c, i, r) for c in s)
-            if isinstance(s, set):
-                return set(resolve(c, i, r) for c in s)
+                c = format.equate.get(c, c)  # This may result in ambiguous or multiple states!
+                return apply_to_state(replace_symbol, c, i, r)
+            return apply_to_state(resolve, s, i, r)
 
         firstrow = None
         for i, l in enumerate(res):
             res[l] = [resolve_symbols(s, i, firstrow) for i, s in enumerate(res[l])]
             if i == 0:
+                # We need the fully resolved entries of the first row around to resolve MATCHCHARs.
                 firstrow = res[l]
 
         # Create the final result, an OrderedDict mapping taxa labels (or numbers) to OrderedDicts
-        # of character labels or numbers.
+        # mapping character labels or numbers to state symbols or labels.
         matrix = collections.OrderedDict()
         for tnum, tlabel in sorted(taxlabels.items()):
             if format.transpose:
@@ -859,10 +862,65 @@ class Characters(Block):
                     entries = res[clabel] if clabel in res else res[cnum]
                     matrix[tlabel][clabel] = entries[tnum - 1]
             else:
-                entries = res[tlabel] if tlabel in res else res[tnum]
-                matrix[tlabel] = collections.OrderedDict(
-                    [(charlabels[i], s) for i, s in enumerate(entries, start=1)])
+                key = tlabel if tlabel in res else tnum
+                if key in res:
+                    # Non-transposed matrices may not have data for each taxon!
+                    entries = res[key]
+                    matrix[tlabel] = collections.OrderedDict(
+                        [(charlabels[i], s) for i, s in enumerate(entries, start=1)])
+        if labeled_states:
+            for entries in matrix.values():
+                for char in entries:
+                    if char in statelabels:
+                        entries[char] = apply_to_state(
+                            lambda s: statelabels[char].get(s, s), entries[char])
         return matrix
+
+    def get_taxlabels(self, format):
+        if self.TAXLABELS:
+            taxlabels = self.TAXLABELS.labels
+            ntax = self.DIMENSIONS.ntax
+        elif 'TAXA' in self.linked_blocks:
+            taxlabels = self.linked_blocks['TAXA'].TAXLABELS.labels
+            ntax = self.linked_blocks['TAXA'].DIMENSIONS.ntax
+        elif self.nexus.TAXA:
+            taxlabels = self.nexus.TAXA.TAXLABELS.labels
+            ntax = self.nexus.TAXA.DIMENSIONS.ntax
+        else:
+            ntax, taxlabels = None, {}
+
+        if format.interleave and format.labels is False and not format.transpose:
+            # If the matrix has no row labels and is not transposed, we need the number of taxa to
+            # compute the size of the interleaved blocks.
+            assert ntax
+            taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
+        return ntax, taxlabels
+
+    def get_charstatelabels(self, nchar, format, labeled_states=False):
+        charlabels = {i + 1: str(i + 1) for i in range(nchar)}
+        statelabels = {}
+
+        if self.CHARSTATELABELS:
+            charlabels = {
+                int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
+            statelabels = {
+                c.number: c.states for c in self.CHARSTATELABELS.characters}
+        elif self.CHARLABELS:
+            charlabels = {
+                int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
+        if self.STATELABELS:
+            statelabels = {c.number: c.states for c in self.CHARSTATELABELS.characters}
+
+        if labeled_states:
+            statelabels = {charlabels[cnum]: states for cnum, states in statelabels.items()}
+            for clabel in statelabels:
+                states = statelabels[clabel]
+                labeled = {}
+                for i, symbol in enumerate(format.symbols):
+                    if i < len(states) and states[i] != '_':
+                        labeled[symbol] = states[i]
+                statelabels[clabel] = labeled
+        return charlabels, statelabels
 
     def validate(self, log=None):
         if 'TAXLABELS' in self.commands and not self.DIMENSIONS.newtaxa:
@@ -873,8 +931,8 @@ class Characters(Block):
         return True
 
     @classmethod
-    def from_data(cls, *tree_specs, **translate_labels) -> 'Characters':
-        nexus = translate_labels.pop('nexus', None)
+    def from_data(cls, *args, **kw) -> 'Characters':
+        nexus = kw.pop('nexus', None)
         cmds = []
         return cls.from_commands(nexus, cmds)
 

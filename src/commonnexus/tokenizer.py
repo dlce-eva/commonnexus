@@ -19,7 +19,9 @@ import dataclasses
 
 __all__ = [
     'TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word',
-    'iter_delimited', 'iter_lines']
+    'iter_delimited', 'iter_lines', 'word_after_equals']
+
+import typing
 
 QUOTE = "'"
 COMMENT = {'[': 1, ']': -1}
@@ -69,10 +71,6 @@ class Token:
     @property
     def is_newline(self):
         return self.is_whitespace and any(c in self.text for c in '\r\n')
-
-    @property
-    def is_comment(self):
-        return self.type == TokenType.COMMENT
 
     @property
     def is_punctuation(self):
@@ -263,6 +261,13 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
                 yield token
     if word:
         yield Word(word)
+
+
+def word_after_equals(words_and_punctuation: typing.Generator) -> str:
+    n = next(words_and_punctuation)
+    assert n.text == '='
+    res = next(words_and_punctuation)
+    return res if isinstance(res, str) else res.text
 
 
 def iter_lines(tokens):

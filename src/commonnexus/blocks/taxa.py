@@ -13,8 +13,8 @@ class Dimensions(Payload):
 
     :ivar int ntax: The number of taxa.
     """
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         text = [t.text for t in tokens if not t.is_whitespace]
         assert text[0].upper() == 'NTAX' and text[1] == '='
         self.ntax = int(text[2])
@@ -40,8 +40,8 @@ class Taxlabels(Payload):
     The taxon number is the number of a taxon, as defined by its position in a TAXLABELS
     command. [...] For example, the third taxon listed in TAXLABELS is taxon number 3.
     """
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.labels = collections.OrderedDict(
             [(n, w) for n, w in enumerate(iter_words_and_punctuation(tokens), start=1)])
         assert len(self.labels) == len(set(self.labels.values())), 'Duplicates in TAXLABELS'
@@ -63,4 +63,3 @@ class Taxa(Block):
     Only one of each command is allowed per block.
     """
     __commands__ = [Dimensions, Taxlabels]
-    # optional: TITLE and LINK

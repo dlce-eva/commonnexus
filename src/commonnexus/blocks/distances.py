@@ -1,7 +1,7 @@
+import typing
 import decimal
 import itertools
 import collections
-import typing
 
 from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines
 from .base import Block, Payload
@@ -96,8 +96,8 @@ class Format(Payload):
        As in the CHARACTERS block, newline characters in interleaved matrices are significant, in
        that they indicate a switch to a new taxon.
     """
-    def __init__(self, tokens):
-        super().__init__(tokens)
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
         self.missing = '?'
         self.labels = True
         self.interleave = False
