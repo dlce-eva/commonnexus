@@ -89,6 +89,20 @@ END;""".format('BEGIN TAXA;\n{}\nEND;'.format(taxa) if taxa else '', characters)
     assert expect(matrix)
 
 
+def test_Characters_Statelabels():
+    nex = Nexus("""#nexus
+BEGIN CHARACTERS;
+DIMENSIONS NEWTAXA NTAX=3 NCHAR=3;
+TAXLABELS t1 t2 t3;
+STATELABELS 1 absent present, 2 x y;
+MATRIX t1 100 t2 010 t3 001;
+END;""")
+    matrix = nex.CHARACTERS.get_matrix(labeled_states=True)
+    print(matrix)
+    assert matrix['t1']['1'] == 'present'
+    assert matrix['t1']['2'] == 'x'
+
+
 def test_Characters_from_data():
     nex = Nexus("""#NEXUS
 BEGIN TAXA;

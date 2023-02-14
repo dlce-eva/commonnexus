@@ -563,6 +563,8 @@ class Statelabels(Payload):
                 states.append(w)
             except StopIteration:
                 break
+        if num and states:
+           self.characters.append(types.SimpleNamespace(number=num, name=None, states=states))
 
 
 class Matrix(Payload):
@@ -928,9 +930,9 @@ class Characters(Block):
                 c.number: c.states for c in self.CHARSTATELABELS.characters}
         elif self.CHARLABELS:
             charlabels = {
-                int(c.number): c.name or str(c.number) for c in self.CHARSTATELABELS.characters}
+                int(c.number): c.name or str(c.number) for c in self.CHARLABELS.characters}
         if self.STATELABELS:
-            statelabels = {c.number: c.states for c in self.CHARSTATELABELS.characters}
+            statelabels = {c.number: c.states for c in self.STATELABELS.characters}
 
         if labeled_states:
             statelabels = {charlabels[cnum]: states for cnum, states in statelabels.items()}
