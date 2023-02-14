@@ -342,4 +342,4 @@ class Trees(Block):
             if translate_labels:
                 nwk.visit(rename)
             cmds.append(('TREE', Tree.format(name, nwk, rooted)))
-        return cls.from_commands(nexus, cmds)
+        return cls.from_commands(cmds, nexus=nexus)

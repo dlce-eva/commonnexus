@@ -952,19 +952,65 @@ class Characters(Block):
         return True
 
     @classmethod
-    def from_data(cls, matrix, taxlabels=None, datatype='STANDARD', **kw) -> 'Characters':
+    def from_data(cls,
+                  matrix: dict,
+                  taxlabels: bool = False,
+                  datatype='STANDARD',
+                  missing: str = '?',
+                  gap: str = '-',
+                  **kw) -> 'Characters':
+        """
+        Instantiate a CHARACTERS or DATA block from a metrix.
+
+        This functionality can be used to normalize the NEXUS formatting of CHARACTERS matrices:
+
+        .. code-block:: python
+
+            >>> nex = Nexus('''#NEXUS
+            ... BEGIN TAXA;
+            ... DIMENSIONS NTAX=3;
+            ... TAXLABELS t1 t2 t3;
+            ... END;
+            ... BEGIN CHARACTERS;
+            ... DIMENSIONS NCHAR=3;
+            ... FORMAT TRANSPOSE NOLABELS;
+            ... MATRIX 100 010 001;
+            ... END;''')
+            >>> matrix = nex.CHARACTERS.get_matrix()
+            >>> nex.replace_block(nex.CHARACTERS, Characters.from_data(matrix))
+            >>> print(nex)
+            #NEXUS
+            BEGIN TAXA;
+            DIMENSIONS NTAX=3;
+            TAXLABELS t1 t2 t3;
+            END;
+            BEGIN CHARACTERS;
+            DIMENSIONS NCHAR=3;
+            FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+            MATRIX
+                t1 100
+                t2 010
+                t3 001;
+            END;
+
+        :param matrix: A matrix as returned by :meth:`Characters.get_matrix()`, with unlabeled \
+        states.
+        :param taxlabels: If `True`, include a TAXLABELS command rather than relying on a TAXA \
+        block being present.
+        :param datatype:
+        :param missing:
+        :param gap:
+        :param kw:
+        """
+        if datatype != 'STANDARD':
+            raise NotImplementedError()
         nexus = kw.pop('nexus', None)
-        dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
-        if taxlabels:
-            dimensions = 'NEWTAXA NTAX={} {}'.format(len(taxlabels), dimensions)
-        symbols = set()
-        rows = []
-        charlabels = None
-        maxlen = 0
-        taxlabels = {}
-        for taxon in matrix:
-            taxlabels[taxon] = Word(taxon).as_nexus_string()
-            maxlen = max([maxlen, len(taxlabels[taxon])])
+        symbols, rows, charlabels, maxlen, tlabels = set(), [], None, 0, {}
+        for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
+            tlabels[taxon] = Word(taxon).as_nexus_string()
+            maxlen = max([maxlen, len(tlabels[taxon])])
+
+        symbol = lambda c: missing if c is None else (gap if c == GAP else c)
 
         for taxon, entries in matrix.items():
             if not charlabels:
@@ -972,25 +1018,35 @@ class Characters(Block):
                     [(str(i + 1), c) for i, c in enumerate(entries)])
             row = []
             for entry in entries.values():
-                symbols |= set(entry)
-                if isinstance(entry, tuple):
-                    row.append('({})'.format(
-                        ''.join('?' if c is None else ('-' if c == GAP else c) for c in entry)))
-                elif isinstance(entry, set):
-                    row.append('{{{}}}'.format(
-                        ''.join('?' if c is None else ('-' if c == GAP else c) for c in entry)))
+                if entry:
+                    symbols |= set(entry)
+                if isinstance(entry, tuple):  # polymorphism -> ()
+                    row.append('({})'.format(''.join(symbol(c) for c in entry)))
+                elif isinstance(entry, set):  # uncertainty -> {}
+                    row.append('{{{}}}'.format(''.join(symbol(c) for c in entry)))
                 else:
-                    row.append('?' if entry is None else ('-' if entry == GAP else entry))
-            rows.append('\n    {} {}'.format(taxlabels[taxon].ljust(maxlen), ''.join(row)))
+                    row.append(symbol(entry))
+            rows.append('\n    {} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))
 
+        dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
+        if taxlabels:
+            dimensions = 'NEWTAXA NTAX={} {}'.format(len(tlabels), dimensions)
         cmds = [
             ('DIMENSIONS', dimensions),
-            ('FORMAT', 'DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="{}"'.format(
+            ('FORMAT', 'DATATYPE=STANDARD MISSING={} GAP={} SYMBOLS="{}"'.format(
+                missing,
+                gap,
                 ''.join(sorted([s for s in symbols if s not in [None, GAP]])))),
-            ('CHARSTATELABELS', ', '.join('\n    {} {}'.format(
-                n, Word(l).as_nexus_string()) for n, l in charlabels.items())),
-            ('MATRIX', ''.join(rows)),
         ]
+        if any(k != v for k, v in charlabels.items()):
+            cmds.append((
+                'CHARSTATELABELS',
+                ', '.join('\n    {} {}'.format(
+                    n, Word(l).as_nexus_string()) for n, l in charlabels.items())))
+        if taxlabels:
+            cmds.append((
+                'TAXLABELS', ' '.join(Word(label).as_nexus_string() for label in tlabels.values())))
+        cmds.append(('MATRIX', ''.join(rows)))
         return cls.from_commands(cmds, nexus=nexus)
 
 
@@ -999,7 +1055,6 @@ class Data(Characters):
     This block is equivalent to a CHARACTERS block in which the NEWTAXA subcommand is included in
     the DIMENSIONS command. That is, the DATA block is a CHARACTERS block that includes not only
     the definition of characters but also the definition of taxa.
-
 
     .. note::
 

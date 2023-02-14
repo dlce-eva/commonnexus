@@ -1,6 +1,7 @@
 import pytest
 
 from commonnexus import Nexus
+from commonnexus.blocks.trees import Trees
 
 
 def test_Trees():
@@ -37,3 +38,21 @@ END;
     assert nodes['A'].comment == 'commentA' and nodes['A'].length == pytest.approx(1.1)
     assert nodes['B'].comment == 'commentB' and nodes['B'].length == pytest.approx(2.2)
     assert nodes["'And C'"].comment == 'comment C' and nodes["'And C'"].length == pytest.approx(3.3)
+
+
+def test_Trees_from_data():
+    nex = Nexus("""#nexus
+BEGIN TAXA;
+    TAXLABELS A B C;
+END;""")
+    nex.append_block(Trees.from_data(('the tree', '(X,Y)Z', False), A='X', B='Y', C='Z'))
+    assert str(nex) == """#NEXUS
+BEGIN TAXA;
+    TAXLABELS A B C;
+END;
+BEGIN TREES;
+TRANSLATE A X,
+B Y,
+C Z;
+TREE 'the tree' = [&U] (A,B)C;
+END;"""

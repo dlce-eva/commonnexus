@@ -1,7 +1,7 @@
 import pytest
 
 from commonnexus import Nexus
-from commonnexus.blocks.characters import GAP
+from commonnexus.blocks.characters import GAP, Characters
 
 
 def test_Chars_1():
@@ -87,3 +87,33 @@ END;""".format('BEGIN TAXA;\n{}\nEND;'.format(taxa) if taxa else '', characters)
     matrix = nex.CHARACTERS.get_matrix()
     #print(matrix)
     assert expect(matrix)
+
+
+def test_Characters_from_data():
+    nex = Nexus("""#NEXUS
+BEGIN TAXA;
+DIMENSIONS NTAX=3;
+TAXLABELS t1 t2 t3;
+END;
+BEGIN CHARACTERS;
+DIMENSIONS NCHAR=3;
+FORMAT TRANSPOSE NOLABELS;
+MATRIX 100 010 001;
+END;
+""")
+    matrix = nex.CHARACTERS.get_matrix()
+    nex.replace_block(nex.CHARACTERS, Characters.from_data(matrix))
+    assert str(nex) == """#NEXUS
+BEGIN TAXA;
+DIMENSIONS NTAX=3;
+TAXLABELS t1 t2 t3;
+END;
+BEGIN CHARACTERS;
+DIMENSIONS NCHAR=3;
+FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+MATRIX 
+    t1 100
+    t2 010
+    t3 001;
+END;
+"""
