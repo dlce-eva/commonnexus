@@ -12,19 +12,20 @@ BEGIN TAXA;
 END;
 BEGIN CHARACTERS;
     DIMENSIONS  NCHAR=3;
-    FORMAT MISSING=? GAP=- SYMBOLS="AB C" EQUATE="x=(AB)y=B z=C" NOLABELS;
+    FORMAT MISSING=? GAP=- SYMBOLS="AB C" EQUATE="x=(AB)y={BC} z=C" NOLABELS;
     CHARSTATELABELS 1  CHAR_A/astate,  2  CHAR_B,  3  CHAR_C/_ bstate cstate;
-    MATRIX xBC ABC ABC;
+    MATRIX xBC ABC A(A B)C;
 END;""")
     assert nex.CHARACTERS.DIMENSIONS.nchar == 3
     assert nex.CHARACTERS.FORMAT.gap == '-'
     assert nex.CHARACTERS.FORMAT.symbols == list('ABC')
-    assert nex.CHARACTERS.FORMAT.equate == dict(x=('A', 'B'), y='B', z='C')
+    assert nex.CHARACTERS.FORMAT.equate == dict(x=('A', 'B'), y={'B', 'C'}, z='C')
     assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].name == 'CHAR_C'
     assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].states == ['_', 'bstate', 'cstate']
     matrix = nex.CHARACTERS.get_matrix(labeled_states=True)
     assert matrix['A']['CHAR_A'] == ('astate', 'B')
     assert matrix['C']['CHAR_C'] == 'cstate'
+    assert matrix['C']['CHAR_B'] == ('A', 'B')
 
 
 @pytest.mark.parametrize(
@@ -52,7 +53,7 @@ MATRIX
         ),
         (
             None,
-            'DIMENSIONS NCHAR=9; FORMAT SYMBOLS="-+x"; MATRIX t1 (-+){-+}+---+-- t2 +x-++--+x t3 -++++--+x;',
+            'DIMENSIONS NCHAR=9; FORMAT labels=left SYMBOLS="-+x"; MATRIX t1 (-+){-+}+---+-- t2 +x-++--+x t3 -++++--+x;',
             lambda m: list(m['t1'].values()) == [('-', '+'), {'-', '+'}, '+', '-', '-', '-', '+', '-', '-'],
         ),
         (  # Test MISSING, GAP and MATCHCHAR

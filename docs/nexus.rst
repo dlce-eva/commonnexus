@@ -26,7 +26,7 @@ NEXUS data:
 Writing NEXUS data
 ------------------
 
-``commonnexus`` provides functionality to write NEXUS by manipulating :class:`commonnexus.nexus.Nexus`
+`commonnexus` provides functionality to write NEXUS by manipulating :class:`commonnexus.nexus.Nexus`
 objects, which can then be written to a file.
 
 .. code-block:: python

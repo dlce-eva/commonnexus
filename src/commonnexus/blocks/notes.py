@@ -108,6 +108,6 @@ class Notes(Block):
 
     .. warning::
 
-        ``SOURCE=RESOURCE`` is not supported by ``commonnexus``.
+        ``SOURCE=RESOURCE`` is not supported by `commonnexus`.
     """
     __commands__ = {Text, Picture}

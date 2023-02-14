@@ -45,7 +45,7 @@ class Nexus(list):
 
     .. note::
 
-        NEXUS is for the most part case-insensitive. ``commonnexus`` reflects this by giving all
+        NEXUS is for the most part case-insensitive. `commonnexus` reflects this by giving all
         blocks and commands uppercase names. Thus, even if a command or block has a lowercase or
         mixed-case name in the file, the corresponding ``Command`` or ``Block`` object must be
         addressed using the uppercase name.
@@ -171,10 +171,17 @@ class Nexus(list):
                 break
         else:
             raise ValueError('Block not found')  # pragma: no cover
+
         for cmd in block[1:-1]:
             self.remove(cmd)
-        for n, payload in reversed(cmds):
-            self.insert(i + 1, Command.from_name_and_payload(n, payload, quote=self.cfg.quote))
+
+        if isinstance(cmds, Block):
+            cmds.nexus = self
+            for cmd in reversed(cmds[1:-1]):
+                self.insert(i + 1, cmd)
+        else:
+            for n, payload in reversed(cmds):
+                self.insert(i + 1, Command.from_name_and_payload(n, payload, quote=self.cfg.quote))
 
     def append_command(self, block, name, payload=None):
         self.insert(

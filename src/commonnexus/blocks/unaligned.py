@@ -3,6 +3,11 @@ from .base import Block
 
 class Unaligned(Block):
     """
+    .. warning::
+
+        `commonnexus` doesn't provide any functionality - other than parsing as generic commands -
+        for ``UNALIGNED`` blocks yet.
+
     The UNALIGNED block includes data that are not aligned. Its primary intent is to house
     unaligned DNA, RNA, NUCLEOTIDE, and PROTEIN sequence data. Taxa are usually not defined in an
     UNALIGNED block; if not, this block must be preceded by a block that defines taxon labels and

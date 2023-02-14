@@ -3,6 +3,11 @@ from .base import Block
 
 class Codons(Block):
     """
+    .. warning::
+
+        `commonnexus` doesn't provide any functionality - other than parsing as generic commands -
+        for ``CODONS`` blocks yet.
+
     The CODONS block contains information about the genetic code, the regions of DNA and RNA
     sequences that are protein coding, and the location of triplets coding for amino adds in
     nucleotide sequences.
@@ -16,7 +21,8 @@ class Codons(Block):
         |     2: character-set,
         |     3 : character-set; ]
         |   [GENETICCODE code-name
-        |     [([CODEORDER=132|other] [NUCORDER = TCAG|other] [[NO]TOKENS] [EXTENSIONS="symbols-list"])]
+        |     [([CODEORDER=132|other] [NUCORDER = TCAG|other] [[NO]TOKENS]
+        |     [EXTENSIONS="symbols-list"])]
         |     = genetic code description];]
         |   [CODESET [*] codeset-name { (CHARACTERS | UNALIGNED | TAXA) } =
         |     code-name:character-set or taxon-set
@@ -40,6 +46,9 @@ class Codons(Block):
     "extra" amino acids have been added to avoid disjunct amino adds (see the EXTENSIONS subcommand
     under GENETICCODE).
 
+
+
+
     CODONPOSSET.—This command stores
 information about protein-coding regions
 and the codon positions of nucleotide ba-
@@ -58,7 +67,7 @@ CODONPOSSET statement is present, all
 bases are presumed of unknown nature.
 For example, the following command
 CODONPOSSET * c o d i n g =
-2 : 1 2 - . \ 3 ,
+2 : 1 2 - . \\ 3 ,
 3 : 1 3 - A 3 ;
 designates bases 1-10 as noncoding and
 positions the remaining bases in the order

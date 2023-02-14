@@ -1,5 +1,9 @@
 # commonnexus
 
+[![Build Status](https://github.com/dlce-eva/commonnexus/workflows/tests/badge.svg)](https://github.com/dlce-eva/commonnexus/actions?query=workflow%3Atests)
+[![Documentation Status](https://readthedocs.org/projects/commonnexus/badge/?version=latest)](https://commonnexus.readthedocs.io/en/latest/?badge=latest)
+[![PyPI](https://badge.fury.io/py/commonnexus.svg)](https://pypi.org/project/commonnexus)
+
 This package provides functionality to read and write the Nexus file format as specified in
 
 > Maddison, Swofford, and Maddison (1997). "NEXUS: An extensible file format for systematic information". Systematic Biology. 46 (4): 590–621. [doi:10.1093/sysbio/46.4.590](https://doi.org/10.1093/sysbio/46.4.590)

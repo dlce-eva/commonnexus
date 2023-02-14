@@ -1,3 +1,15 @@
+"""
+What about PAUP's OPTIONS command:
+
+https://paup.phylosolutions.com/tutorials/quick-start/
+
+begin data;
+dimensions ntax=12 nchar=898;
+format missing=? gap=- matchchar=. interleave datatype=dna;
+options gapmode=missing;
+matrix
+
+"""
 import re
 import collections
 import types

@@ -5,7 +5,7 @@ import typing
 
 from .base import Block, Payload
 from commonnexus.tokenizer import (
-    iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN, word_after_equals,
+    iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN, word_after_equals, Word,
 )
 from .taxa import Taxlabels
 
@@ -29,7 +29,7 @@ class Eliminate(Payload):
     tells the program to skip over characters 4 through 100 in reading the matrix. Character-set
     names are not allowed in the character list. This command does not affect character numbers.
 
-    .. warning:: The ``ELIMINATE`` command is currently not supported in ``commonnexus``.
+    .. warning:: The ``ELIMINATE`` command is currently not supported in `commonnexus`.
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
@@ -102,7 +102,7 @@ class Format(Payload):
        DATATYPE=CONTINUOUS. These DATATYPES are described in detail, with examples, at the end of
        the description of the CHARACTERS block.
 
-       .. warning:: ``DATATYPE=CONTINUOUS`` is currently not supported in ``commonnexus``.
+       .. warning:: ``DATATYPE=CONTINUOUS`` is currently not supported in `commonnexus`.
 
     2. RESPECTCASE. By default, information in a MATRIX may be entered in uppercase, lowercase, or
        a mixture of uppercase and lowercase. If RESPECTCASE is requested, case is considered
@@ -147,7 +147,7 @@ class Format(Payload):
 
             BEGIN DATA;
                 DIMENSIONS NCHAR = 7;
-                FORMAT DATATYPE=DNA MATCHCHAR = .;
+                FORMAT DATATYPE=DNA MATCHCHAR=.;
                 MATRIX
                     taxon_l GACCTTA
                     taxon_2 ...T..C
@@ -213,7 +213,7 @@ class Format(Payload):
 
        .. warning::
 
-            Settings other than ``ITEMS=STATES`` are currently not supported in ``commonnexus``.
+            Settings other than ``ITEMS=STATES`` are currently not supported in `commonnexus`.
 
     12. STATESFORMAT. The entry in a matrix usually lists (for discrete data) or may list
         (for continuous data) the states observed in the taxon. The STATESFORMAT subcommand
@@ -236,7 +236,7 @@ class Format(Payload):
         .. warning::
 
             Only the default setting ``STATESFORMAT=STATESPRESENT`` is currently supported in
-            ``commonnexus``.
+            `commonnexus`.
 
     13. [NO]TOKENS. This subcommand specifies whether data matrix entries are single symbols or
         whether they can be tokens. If TOKENS, then the data values must be full NEXUS tokens,
@@ -261,7 +261,7 @@ class Format(Payload):
         NUCLEOTIDE. If TOKENS is invoked, the standard three-letter amino acid abbreviations can be
         used with DATATYPE=PROTEIN and defined state names can be used for DATATYPE=STANDARD.
 
-        .. warning:: ``TOKENS`` is currently not supported in ``commonnexus``.
+        .. warning:: ``TOKENS`` is currently not supported in `commonnexus`.
 
     :ivar str datatype:
     :ivar bool respectcase:
@@ -287,7 +287,7 @@ class Format(Payload):
         super().__init__(tokens, nexus=nexus)
         self.datatype = None
         self.respectcase = False
-        self.missing = '?'  # FIXME: one-character, most punctuation excluded
+        self.missing = '?'
         self.gap = None
         self.symbols = ['0', '1']  # The default for DATATYPE=STANDARD
         self.equate = {}
@@ -314,8 +314,10 @@ class Format(Payload):
                 elif isinstance(word, Token) and word.text == '=':
                     if subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE', 'LABELS', 'TOKENS']:
                         # Some NEXUS variants set boolean subcommands always with "=no|yes"
-                        word = next(words)  # FIXME: also deal with "labels=left"?
-                        setattr(self, subcommand.lower(), BOOLEAN[word.lower()])
+                        word = next(words).lower()
+                        if subcommand == 'LABELS' and word == 'left':
+                            word = 'yes'
+                        setattr(self, subcommand.lower(), BOOLEAN[word])
                     elif subcommand:
                         raise ValueError(subcommand)
 
@@ -334,18 +336,28 @@ class Format(Payload):
                             assert w.text in '+-'
                             self.symbols.append(w.text)
                 elif subcommand == 'EQUATE':
-                    key, e = None, False
+                    key, e, bracket = None, False, None
                     for t in iter_delimited(after_equals(), words):
-                        if isinstance(t, Token) and t.text == '=':
-                            assert key
-                            e = True
-                        #
-                        # FIXME: support equate with {...}!
-                        #
+                        if isinstance(t, Token):
+                            if t.text == '=':
+                                assert key
+                                e = True
+                                bracket = None
+                            else:
+                                bracket = t.text
                         elif isinstance(t, str):
                             if key:
                                 assert e
-                                self.equate[key] = t if len(t) == 1 else tuple(t)
+                                if bracket is None:
+                                    assert len(t) == 1
+                                    self.equate[key] = t
+                                elif bracket == '(':
+                                    self.equate[key] = tuple(t)
+                                elif bracket == '{':
+                                    self.equate[key] = set(t)
+                                else:
+                                    raise ValueError(
+                                        'Invalid punctuation in EQUATE content: {}'.format(bracket))
                                 key, e = None, False
                             else:
                                 key = t
@@ -372,8 +384,9 @@ class Format(Payload):
         else:
             self.statesformat = 'STATESPRESENT'
         for attr in ['missing', 'gap', 'matchchar']:
-            assert getattr(self, attr) or 'z' not in INVALID_SYMBOLS
-        assert not any(c in INVALID_SYMBOLS for c in self.equate)
+            c = getattr(self, attr)
+            if c:
+                assert len(c) == 1 and c not in INVALID_SYMBOLS
 
         if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
             T = 'U' if self.datatype == 'RNA' else 'T'
@@ -397,6 +410,11 @@ class Format(Payload):
         elif self.datatype == 'PROTEIN':
             self.symbols.extend(list('ACDEFGHIKLMNPQRSTVWY*'))
             self.equate.update(B=set('DN'), Z=set('EQ'))
+
+        invalid_equate = \
+            list(INVALID_SYMBOLS) + self.symbols + \
+            [self.missing or '', self.gap or '', self.matchchar or '']
+        assert not any(c in invalid_equate for c in self.equate)
 
 
 class Charstatelabels(Payload):
@@ -732,7 +750,9 @@ class Characters(Block):
         Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
 
     def get_matrix(self, labeled_states: bool = False) \
-            -> typing.OrderedDict[str, typing.OrderedDict[str, typing.Union[None, str]]]:
+            -> typing.OrderedDict[
+                str, typing.OrderedDict[
+                    str, typing.Union[None, str, typing.Tuple[str], typing.Set[str]]]]:
         """
         :param labeled_states: Flag signaling whether state symbols should be translated to state \
         labels (if available).
@@ -778,12 +798,13 @@ class Characters(Block):
                         continue
                     if isinstance(t, Token):
                         if t.text == '(':
-                            #
-                            # FIXME: apparently, states in parentheses may contain whitespace and
-                            # commas.
-                            #
-                            entries.append(tuple(next(words)))
-                            assert next(words).text == ')'
+                            symbols = ''
+                            word = next(words)
+                            while isinstance(word, str):
+                                symbols += word
+                                word = next(words)
+                            entries.append(tuple(symbols))
+                            assert word.text == ')'
                         elif t.text == '{':
                             entries.append(set(next(words)))
                             assert next(words).text == '}'
@@ -931,10 +952,46 @@ class Characters(Block):
         return True
 
     @classmethod
-    def from_data(cls, *args, **kw) -> 'Characters':
+    def from_data(cls, matrix, taxlabels=None, datatype='STANDARD', **kw) -> 'Characters':
         nexus = kw.pop('nexus', None)
-        cmds = []
-        return cls.from_commands(nexus, cmds)
+        dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
+        if taxlabels:
+            dimensions = 'NEWTAXA NTAX={} {}'.format(len(taxlabels), dimensions)
+        symbols = set()
+        rows = []
+        charlabels = None
+        maxlen = 0
+        taxlabels = {}
+        for taxon in matrix:
+            taxlabels[taxon] = Word(taxon).as_nexus_string()
+            maxlen = max([maxlen, len(taxlabels[taxon])])
+
+        for taxon, entries in matrix.items():
+            if not charlabels:
+                charlabels = collections.OrderedDict(
+                    [(str(i + 1), c) for i, c in enumerate(entries)])
+            row = []
+            for entry in entries.values():
+                symbols |= set(entry)
+                if isinstance(entry, tuple):
+                    row.append('({})'.format(
+                        ''.join('?' if c is None else ('-' if c == GAP else c) for c in entry)))
+                elif isinstance(entry, set):
+                    row.append('{{{}}}'.format(
+                        ''.join('?' if c is None else ('-' if c == GAP else c) for c in entry)))
+                else:
+                    row.append('?' if entry is None else ('-' if entry == GAP else entry))
+            rows.append('\n    {} {}'.format(taxlabels[taxon].ljust(maxlen), ''.join(row)))
+
+        cmds = [
+            ('DIMENSIONS', dimensions),
+            ('FORMAT', 'DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="{}"'.format(
+                ''.join(sorted([s for s in symbols if s not in [None, GAP]])))),
+            ('CHARSTATELABELS', ', '.join('\n    {} {}'.format(
+                n, Word(l).as_nexus_string()) for n, l in charlabels.items())),
+            ('MATRIX', ''.join(rows)),
+        ]
+        return cls.from_commands(cmds, nexus=nexus)
 
 
 class Data(Characters):
@@ -942,5 +999,11 @@ class Data(Characters):
     This block is equivalent to a CHARACTERS block in which the NEWTAXA subcommand is included in
     the DIMENSIONS command. That is, the DATA block is a CHARACTERS block that includes not only
     the definition of characters but also the definition of taxa.
+
+
+    .. note::
+
+        The GAPMODE subcommand of the OPTIONS command of the ASSUMPTIONS block was originally
+        housed in an OPTIONS command in the DATA block.
     """
     pass

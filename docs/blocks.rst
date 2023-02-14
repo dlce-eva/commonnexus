@@ -61,6 +61,17 @@ Distances
     :exclude-members: Distances
 
 
+Sets
+----
+
+.. autoclass:: commonnexus.blocks.sets.Sets
+    :members:
+
+.. automodule:: commonnexus.blocks.sets
+    :members:
+    :exclude-members: Sets
+
+
 Notes
 -----
 
@@ -70,3 +81,10 @@ Notes
 .. automodule:: commonnexus.blocks.notes
     :members:
     :exclude-members: Notes
+
+
+Assumptions
+-----------
+
+.. autoclass:: commonnexus.blocks.assumptions.Assumptions
+    :members:

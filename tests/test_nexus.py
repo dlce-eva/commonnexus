@@ -72,7 +72,7 @@ def test_Nexus(nex, expect, fixture_dir):
         n = Nexus.from_file(p)
         nex = p.read_text(encoding='utf8')
     assert expect(n)
-    assert str(n).strip() == nex.strip()
+    assert str(n).strip() == nex.strip(), 'Round-tripping failed!'
 
 
 def test_Nexus_modification():
