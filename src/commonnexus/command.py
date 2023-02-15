@@ -25,7 +25,7 @@ class Command(tuple):
         semicolons = 0
         if payload:
             tokens.append(Token(' ', TokenType.WHITESPACE, quote))
-            payload = list(iter_tokens(iter(payload)))
+            payload = list(iter_tokens(iter(payload), quote=quote))
             semicolons = len([t for t in payload if t.is_semicolon])
             assert semicolons == 0 or (semicolons == 1 and payload[-1].is_semicolon)
             tokens.extend(payload)

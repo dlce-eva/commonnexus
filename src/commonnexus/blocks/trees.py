@@ -4,6 +4,7 @@ import collections
 import newick
 
 from .base import Payload, Block
+from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, QUOTE
 
 
@@ -140,23 +141,27 @@ class Tree(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         # We parse tree name and rooting information right away.
-        self.name, e, self._rooted, nwk = None, False, None, False
+        self.name, ncomplete, e, self._rooted, nwk = None, False, False, None, False
 
         tokens = iter(self._tokens)
         while not self.name:
             t = next(tokens)
             if t.type in {TokenType.WORD, TokenType.QWORD}:
                 self.name = t.text
+                if t.type == TokenType.QWORD:
+                    ncomplete = True
 
         while not e:
             t = next(tokens)
             if t.type == TokenType.WORD:
+                assert not ncomplete, 'Stuff between tree name and ='
                 self.name += t.text
             if t.type == TokenType.PUNCTUATION:
                 if t.text == '=':
                     e = True
                 else:
-                    self.name += t.text
+                    assert not ncomplete, 'Stuff between tree name and ='
+                    self.name += t.text  # FIXME: Should we append punctuation to tree names?
 
         while not nwk:
             t = next(tokens)
@@ -227,9 +232,7 @@ class Tree(Payload):
                     word = []
                 nt.append(newick.Token('[' + token.text + ']', newick.TokenType.COMMENT, l))
             elif token.type == TokenType.QWORD:
-                if word:
-                    nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
-                    word = []
+                assert not word  # As in NEXUS, a newick QWORD can not follow a WORD.
                 nt.append(
                     newick.Token(Word(token.text).as_nexus_string(), newick.TokenType.QWORD, l))
         if word:
@@ -258,17 +261,15 @@ class Trees(Block):
         super().validate(log=log)
         valid, with_translate, tree_seen = True, False, False
         for i, cmd in enumerate(self[1:-1]):
-            if cmd.name not in self.payload_map:
-                if log:
-                    log.error('Invalid command for {} block: {}'.format(self.name, cmd.name))
-                valid = False
+            if cmd.name not in self.payload_map:  # pragma: no cover
+                valid = log_or_raise(
+                    'Invalid command for {} block: {}'.format(self.name, cmd.name), log=log)
             if cmd.name == 'TRANSLATE':
-                if with_translate:
-                    log.error('Duplicate TRANSLATE command')
-                    valid = False
-                elif tree_seen:
-                    log.warning('TRANSLATE command **after** TREE command')
-                    valid = False
+                if with_translate:  # pragma: no cover
+                    valid = log_or_raise('Duplicate TRANSLATE command', log=log)
+                elif tree_seen:  # pragma: no cover
+                    valid = log_or_raise(
+                        'TRANSLATE command **after** TREE command', log=log, level='warning')
                 else:
                     with_translate = True
             else:

@@ -4,18 +4,14 @@ from commonnexus import Nexus
 from commonnexus.blocks.characters import GAP, Characters
 
 
-def test_Chars_1():
-    nex = Nexus("""#nexus
-BEGIN TAXA;
-    DIMENSIONS  NTAX=3;
-    TAXLABELS A B C;
-END;
-BEGIN CHARACTERS;
-    DIMENSIONS  NCHAR=3;
-    FORMAT MISSING=? GAP=- SYMBOLS="AB C" EQUATE="x=(AB)y={BC} z=C" NOLABELS;
-    CHARSTATELABELS 1  CHAR_A/astate,  2  CHAR_B,  3  CHAR_C/_ bstate cstate;
-    MATRIX xBC ABC A(A B)C;
-END;""")
+def test_Chars_1(nexus):
+    nex = nexus(
+        TAXA="DIMENSIONS  NTAX=3; TAXLABELS A B C;",
+        CHARACTERS="""\
+DIMENSIONS  NCHAR=3;
+FORMAT MISSING=? GAP=- SYMBOLS="AB C" EQUATE="x=(AB)y={BC} z=C" NOLABELS;
+CHARSTATELABELS 1  CHAR_A/astate,  2  CHAR_B,  3  CHAR_C/_ bstate cstate;
+MATRIX xBC ABC A(A B)C;""")
     assert nex.CHARACTERS.DIMENSIONS.nchar == 3
     assert nex.CHARACTERS.FORMAT.gap == '-'
     assert nex.CHARACTERS.FORMAT.symbols == list('ABC')

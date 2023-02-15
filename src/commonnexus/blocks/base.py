@@ -170,7 +170,7 @@ class Block(tuple):
             'with data'
         """
         kw = {}
-        if nexus:
+        if nexus is not None:
             kw['quote'] = nexus.cfg.quote
         cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper(), **kw)]
         for cname, payload in commands:

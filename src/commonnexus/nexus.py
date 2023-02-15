@@ -53,8 +53,9 @@ class Nexus(list):
     def __init__(self,
                  s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
                  block_implementations=None,
-                 config=None):
-        self.cfg = config or Config()
+                 config=None,
+                 **kw):
+        self.cfg = config or Config(**kw)
         self.trailing_whitespace = []
         #
         # FIXME: We must recurse into subclasses of subclasses to get aliases such as Data for
