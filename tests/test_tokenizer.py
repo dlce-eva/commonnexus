@@ -10,6 +10,7 @@ from commonnexus.tokenizer import *
          ['Bembidion', 'B._zephyrum', "John's sparrow (eastern) "]),
         (r"[\\i]Bembidion_velox[\\p]_Linnaeus", ['Bembidion_velox_Linnaeus']),
         ("'B. zephyrum' ", [Word('B._zephyrum')]),
+        ("aword 'the ''word'", ["aword", "the 'word"]),
     ]
 )
 def test_iter_words(text, words):
@@ -18,3 +19,19 @@ def test_iter_words(text, words):
 
 def test_iter_words_2():
     assert [w for w in iter_words_and_punctuation(iter_tokens(iter('abc-def')), allow_punctuation_in_word='-')] == ['abc-def']
+
+
+@pytest.mark.parametrize(
+    'start,string,length,allow_single_word',
+    [
+        ('"', 'a b c"', 3, False),
+        ('word', 'a b c"', 1, True),
+        (None, '"a b c"', 3, False),
+    ]
+)
+def test_iter_delimited(start, string, length, allow_single_word):
+    res = list(iter_delimited(
+        start,
+        iter_words_and_punctuation(iter_tokens(iter(string))),
+        allow_single_word=allow_single_word))
+    assert len(res) == length

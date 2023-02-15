@@ -19,7 +19,7 @@ import dataclasses
 
 __all__ = [
     'TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word',
-    'iter_delimited', 'iter_lines', 'word_after_equals']
+    'iter_delimited', 'iter_lines', 'word_after_equals', 'iter_key_value_pairs']
 
 import typing
 
@@ -241,9 +241,7 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
     word = ''
     for i, token in enumerate(tokens):
         if token.type == TokenType.QWORD:
-            if word:
-                yield Word(word)
-                word = ''
+            assert not word
             yield token.text
         elif token.type == TokenType.WORD:
             word += token.text
@@ -261,6 +259,42 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
                 yield token
     if word:
         yield Word(word)
+
+
+def iter_key_value_pairs(tokens, allow_punctuation_in_word=None):
+    """
+    :param tokens:
+    :param allow_punctuation_in_word:
+    :return:
+    """
+    key, e, value, b = None, False, [], False
+    for t in iter_words_and_punctuation(
+            tokens, allow_punctuation_in_word=allow_punctuation_in_word):
+        if key is None:
+            assert isinstance(t, str)
+            key = t
+        elif not e:
+            assert isinstance(t, Token) and t.text == '='
+            e = True
+        else:
+            if isinstance(t, Token):
+                if t.text == '(':
+                    assert not value
+                    b = True
+                elif t.text == ')':
+                    assert b
+                    yield key, value
+                    key, e, value, b = None, False, [], False
+                else:
+                    assert b
+                    value.append(t.text)
+            else:
+                if b:
+                    value.append(t)
+                else:
+                    assert not value
+                    yield key, [t]
+                    key, e, value, b = None, False, [], False
 
 
 def word_after_equals(words_and_punctuation: typing.Generator) -> str:
@@ -284,15 +318,15 @@ def iter_lines(tokens):
 
 def iter_delimited(start, words_and_punctuation, delimiter='"', allow_single_word=False):
     startchar = delimiter[0]
-    endchar = start if len(delimiter) == 1 else delimiter[1]
+    endchar = startchar if len(delimiter) == 1 else delimiter[1]
 
     if isinstance(start, str) and start != startchar:
         if allow_single_word:
             yield start
             return
-        else:
-            raise ValueError()
+        raise ValueError("No delimiter found!")  # pragma: no cover
     else:
+        start = start or next(words_and_punctuation)
         assert getattr(start, 'text', start) == startchar
         w = next(words_and_punctuation)
         while not (isinstance(w, Token) and w.text == endchar):

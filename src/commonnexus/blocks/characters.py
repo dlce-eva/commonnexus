@@ -919,7 +919,8 @@ class Characters(Block):
             taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
         return ntax, taxlabels
 
-    def get_charstatelabels(self, nchar, format, labeled_states=False):
+    def get_charstatelabels(self, nchar=None, format=None, labeled_states=False):
+        nchar = nchar or self.DIMENSIONS.nchar
         charlabels = {i + 1: str(i + 1) for i in range(nchar)}
         statelabels = {}
 
@@ -936,13 +937,16 @@ class Characters(Block):
 
         if labeled_states:
             statelabels = {charlabels[cnum]: states for cnum, states in statelabels.items()}
-            for clabel in statelabels:
-                states = statelabels[clabel]
-                labeled = {}
-                for i, symbol in enumerate(format.symbols):
-                    if i < len(states) and states[i] != '_':
-                        labeled[symbol] = states[i]
-                statelabels[clabel] = labeled
+            format = format or self.FORMAT
+            if format:
+                for clabel in statelabels:
+                    states = statelabels[clabel]
+                    labeled = {}
+                    for i, symbol in enumerate(format.symbols):
+                        if i < len(states) and states[i] != '_':
+                            labeled[symbol] = states[i]
+                    statelabels[clabel] = labeled
+        assert len(charlabels) == nchar
         return charlabels, statelabels
 
     def validate(self, log=None):

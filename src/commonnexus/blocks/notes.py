@@ -1,4 +1,5 @@
 from .base import Block, Payload
+from commonnexus.tokenizer import iter_key_value_pairs
 
 
 class Text(Payload):
@@ -16,9 +17,9 @@ class Text(Payload):
     .. code-block::
 
         TEXT TAXON=5 CHARACTER=2 TEXT='4 specimens observed';
-        TEXT TAxoN=Pan TEXT='This genus lives in Africa';
+        TEXT TAXON=Pan TEXT='This genus lives in Africa';
         TEXT CHARACTER=2 TEXT='Perhaps this character should be deleted';
-        TEXT CHARACTER=1 STATE=0 TEXT= 'This state is hard to detect';
+        TEXT CHARACTER=1 STATE=0 TEXT='This state is hard to detect';
 
     the first command assigns the note "4 specimens observed" to the data entry for taxon 5,
     character 2; the second command assigns the note "Perhaps this character should be deleted" to
@@ -28,7 +29,36 @@ class Text(Payload):
     The text or source descriptor must be a single NEXUS word. If the text contains NEXUS
     whitespace or punctuation, it needs to be surrounded by single quotes, with any contained
     single quotes converted to a pair of single quotes.
+
+    :ivar typing.List[str] taxons: list of taxon labels or numbers the text relates to.
     """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        self.taxons = None
+        self.characters = None
+        self.states = None
+        self.trees = None
+        self.source = None
+        self.text = None
+
+        for key, values in iter_key_value_pairs(self._tokens):
+            key = key.lower()
+            if key in ['taxon', 'character', 'state', 'tree']:
+                key = key + 's'
+            else:
+                assert len(values) == 1
+                values = values[0]
+            setattr(self, key.lower(), values)
+        if self.nexus:
+            for key in ['taxon', 'character', 'state', 'tree']:
+                key = key + 's'
+                if getattr(self, key):
+                    kw = {}
+                    if key == 'states':
+                        kw['chars'] = self.characters
+                    setattr(self, key, self.nexus.resolve_set_spec(
+                        key[:-1].upper(), getattr(self, key), **kw))
+        assert self.source in ['FILE', 'INLINE'], self.source
 
 
 class Picture(Payload):
@@ -100,7 +130,7 @@ class Notes(Block):
 
     .. code-block::
 
-        TEXT TAXON= (1-3) TEXT= 'these taxa from the far north';
+        TEXT TAXON=(1-3) TEXT= 'these taxa from the far north';
 
     If both a taxon-set and a character-set are specified, then the text or picture applies to
     those characters for those particular taxa. If both a character-set and a state-set are
@@ -108,6 +138,6 @@ class Notes(Block):
 
     .. warning::
 
-        ``SOURCE=RESOURCE`` is not supported by `commonnexus`.
+        PICTURE and ``SOURCE=RESOURCE`` for TEXT is not supported by `commonnexus`.
     """
     __commands__ = {Text, Picture}

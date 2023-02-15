@@ -3,7 +3,7 @@ import logging
 import pytest
 
 from commonnexus import Nexus, Block, Config
-from commonnexus.tokenizer import TokenType
+from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
 
 
 @pytest.mark.parametrize(
@@ -73,6 +73,24 @@ def test_Nexus(nex, expect, fixture_dir):
         nex = p.read_text(encoding='utf8')
     assert expect(n)
     assert str(n).strip() == nex.strip(), 'Round-tripping failed!'
+
+
+@pytest.mark.parametrize(
+    'spec,labels,resolved',
+    [
+        ('2', 't1 t2', ['t2']),
+        ('2 - 4', 't1 t2 t3 t4', ['t2', 't3', 't4']),
+        ('1 3 - 4', 't1 t2 t3 t4', ['t1', 't3', 't4']),
+        ('2 - .', 't1 t2 t3 t4', ['t2', 't3', 't4']),
+    ]
+)
+def test_Nexus_resolve_set_spec(spec, labels, resolved):
+    nex = Nexus("""#nexus
+BEGIN TAXA;
+DIMENSIONS NTAX={};
+TAXLABELS {};
+END;""".format(len(labels.split()), labels))
+    assert nex.resolve_set_spec('TAXON', spec.split()) == resolved
 
 
 def test_Nexus_modification():

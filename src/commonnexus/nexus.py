@@ -157,6 +157,77 @@ class Nexus(list):
             res[block.name].append(block)
         return res
 
+    def resolve_set_spec(self, object_name, spec, chars=None):
+        """
+        Resolve a set spec to a list of included items, specified by label or number.
+
+        :param object_name:
+        :param spec:
+        :return:
+        """
+        print(spec)
+        def numbers(maxn):
+            res = []
+            start, r = None, False
+            for token in spec:
+                if not start:
+                    start = token
+                else:
+                    if token == '-':
+                        r = True
+                    else:
+                        if r:
+                            res.extend(list(
+                                range(int(start), int(token if token != '.' else maxn) + 1)))
+                            r, start = False, None
+                        else:
+                            res.append(int(start))
+                            start = token
+            if start:
+                res.append(int(start))
+            return res
+
+        object_name = object_name.upper()
+        assert object_name in ['TAXON', 'CHARACTER', 'STATE', 'TREE']
+        n, labels = None, None
+        if object_name == 'TAXON':
+            if self.TAXA:
+                # FIXME: What if there's more than one TAXA block?
+                n = self.TAXA.DIMENSIONS.ntax
+                labels = self.TAXA.TAXLABELS.labels
+            elif self.CHARACTERS and self.CHARACTERS.DIMENSIONS.newtaxa:
+                n = self.CHARACTERS.DIMENSIONS.ntax
+                if self.CHARACTERS.TAXLABELS:
+                    labels = self.CHARACTERS.TAXLABELS.labels
+
+        if object_name == 'CHARACTER':
+            block = self.CHARACTERS or self.DATA
+            if block:
+                labels, _ = block.get_charstatelabels()
+                n = len(labels)
+
+        if object_name == 'STATE':
+            chars = chars or []  # Labeled states make only sense in relation to characters.
+            block = self.CHARACTERS or self.DATA
+            if block:
+                _, slabels = block.get_charstatelabels(labeled_states=True)
+                res = collections.defaultdict(list)
+                # need to transpose
+                for char, states in slabels.items():
+                    if char in chars:
+                        res[char] = [state for i, state in enumerate(states)
+                                     if i + 1 in numbers(len(states))]
+                return res
+            return  # pragma: no cover
+
+        if object_name == 'TREE':
+            labels = {i + 1: tree.name for i, tree in enumerate(self.TREES.commands['TREE'])}
+
+        if not labels:
+            assert n
+            labels = {i + 1: str(i + 1) for i in range(n)}
+        return [labels[n] for n in numbers(n)]
+
     def remove_block(self, block):
         for cmd in block:
             self.remove(cmd)
