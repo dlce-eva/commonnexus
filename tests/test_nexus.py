@@ -21,7 +21,11 @@ from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
                 lambda n: len(n.blocks['TREES']) == 1),
         (
                 "#NEXUS BEGIN AssuMP[co[mm]ent]TiONS; ENDblock;",
-                lambda n: 'ASSUMPTIONS' in n.blocks and n.comments[0].text == 'co[mm]ent'),
+                lambda n: 'ASSUMPTIONS' in n.blocks and n.comments[0] == 'co[mm]ent'),
+        (
+            "#NEXUS begin block; cmd [comment]; end;",
+            lambda n: n.BLOCK.CMD.comments == ['comment'],
+        ),
         # Commands cannot contain semicolons, except as terminators, unless the semicolons are
         # contained within a comment or within a quoted token consisting of more than one text
         # character.
@@ -51,7 +55,7 @@ from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
         # Test on "real" Nexus files:
         (
                 'ape_random.trees',
-                lambda n: n.comments[0].text == 'R-package APE, Mon Apr  4 13:30:05 2011' and 'TAXA' in n.blocks),
+                lambda n: n.comments[0] == 'R-package APE, Mon Apr  4 13:30:05 2011' and 'TAXA' in n.blocks),
         #(
         #        'quoted_tree_name.nex',
         #        lambda n: n.TREES.TREE.name.startswith('Transformed') and n.TREES.TREE.newick_node),

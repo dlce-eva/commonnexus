@@ -5,9 +5,10 @@ from commonnexus.blocks.characters import GAP, Characters
 
 
 def test_Eliminate(nexus):
+    nex = nexus(CHARACTERS='ELIMINATE 1-3;', config=Config(ignore_unsupported=False))
     with pytest.raises(NotImplementedError):
-        _ = nexus(CHARACTERS='ELIMINATE 1-3;').CHARACTERS.commands
-    _ = nexus(CHARACTERS='ELIMINATE 1-3;', config=Config(ignore_unsupported=True)).CHARACTERS.ELIMINATE
+        _ = nex.CHARACTERS.commands
+    _ = nexus(CHARACTERS='ELIMINATE 1-3;').CHARACTERS.ELIMINATE
 
 
 def test_Chars_1(nexus):

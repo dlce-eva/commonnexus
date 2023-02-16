@@ -21,6 +21,8 @@ NEXUS data:
 
 
 .. automodule:: commonnexus.nexus
+    :members:
+    :special-members:
 
 
 Writing NEXUS data
@@ -45,3 +47,12 @@ manipulate a ``Nexus`` object are
 
 .. automethod:: commonnexus.nexus.Nexus.replace_block
 
+
+The methods to add blocks accept :class:`Block` instances as argument. Such instances can be
+obtained by calling the generic factory method
+
+.. automethod:: commonnexus.blocks.Block.from_commands
+
+or specific implementations of `Block.from_data`, such as
+:meth:`commonnexus.blocks.characters.Characters.from_data` or
+:meth:`commonnexus.blocks.trees.Trees.from_data`

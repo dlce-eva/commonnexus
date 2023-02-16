@@ -54,4 +54,3 @@ class Unaligned(Block):
     A comma must be placed at the end of each sequence (except the last, which requires a
     semicolon). Each sequence can occupy more than one line.
     """
-    pass

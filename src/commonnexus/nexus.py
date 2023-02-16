@@ -2,6 +2,7 @@ import typing
 import pathlib
 import itertools
 import collections
+import dataclasses
 
 from .tokenizer import TokenType, iter_tokens, get_name, Word
 from commonnexus.command import Command
@@ -12,23 +13,30 @@ __all__ = ['Config', 'Nexus']
 NEXUS = '#NEXUS'
 
 
+@dataclasses.dataclass
 class Config:
-    def __init__(self,
-                 quote="'",
-                 hyphenminus_is_text=False,
-                 validate_newick=False,
-                 ignore_unsupported=False,
-                 encoding='utf8'):
-        self.quote = quote
-        self.hyphenminus_is_text = hyphenminus_is_text
-        self.validate_newick = validate_newick
-        self.encoding = encoding
-        self.ignore_unsupported = ignore_unsupported
+    """
+    The global parsing behaviour of a :class:`Nexus` instance can be configured.
+    The available configuration options are set and accessed from an instance of `Config`.
+    """
+    #: Specifies a character to use as delimiter of quoted strings.
+    quote: str = "'"
+    #: Specifies whether "-", aka ASCII hyphen-minus, is considered punctuation or not.
+    hyphenminus_is_text: bool = False
+    #: Specifies whether Newick nodes for TREEs are constructed by parsing the Newick string or
+    #: from the Nexus tokens. The latter is slightly faster but will bypass some input validation.
+    validate_newick: bool = False
+    #: Specifies whether unsupported NEXUS commands/options are ignored or raise an error.
+    ignore_unsupported: bool = True
+    #: Specifies the text encoding of a NEXUS file.
+    encoding: str = 'utf8'
 
 
 class Nexus(list):
     """
-    A list of tokens with methods to access newick constituents. From the spec:
+    A NEXUS object implemented as list of tokens with methods to access newick constituents.
+
+    From the spec:
 
         The tokens in a NEXUS file are organized into commands, which are in turn organized into
         blocks.
@@ -54,15 +62,28 @@ class Nexus(list):
     """
     def __init__(self,
                  s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
-                 block_implementations=None,
-                 config=None,
+                 block_implementations: typing.Optional[typing.Dict[str, Block]] = None,
+                 config: typing.Optional[Config] = None,
                  **kw):
+        """
+        :param s: The NEXUS content.
+        :param block_implementations: Custom implementations for non-public blocks.
+        :param config: Configuration.
+        :param kw: If no :class:`Config` object is passed as `config`, keyword parameters will be \
+        interpreted as configuration options. Thus,
+
+        .. code-block:: python
+
+            >>> nex = Nexus(encoding='latin')
+
+        is a shortcut for
+
+        .. code-block:: python
+
+            >>> nex = Nexus(config=Config(encoding='latin'))
+        """
         self.cfg = config or Config(**kw)
         self.trailing_whitespace = []
-        #
-        # FIXME: We must recurse into subclasses of subclasses to get aliases such as Data for
-        # Characters!
-        #
         self.block_implementations = {}
         for cls in Block.__subclasses__():
             self.block_implementations[cls.__name__.upper()] = cls
@@ -91,11 +112,19 @@ class Nexus(list):
             s = commands
         list.__init__(self, s)
 
-    def word_as_nexus_string(self, word):
-        return Word(word).as_nexus_string(self.cfg.quote)
-
     @classmethod
-    def from_file(cls, p, config=None, **kw):
+    def from_file(cls,
+                  p: typing.Union[str, pathlib.Path],
+                  config: typing.Optional[Config] = None,
+                  **kw) -> 'Nexus':
+        """
+        Instantiate a `Nexus` object from the contents of a NEXUS file.
+
+        :param p: Path of the file.
+        :param config: An optional configuration object.
+        :param kw: Configuration options, if no `Config` object is passed in.
+        :return: A `Nexus` instance.
+        """
         config = config or Config(**kw)
         p = pathlib.Path(p)
         not_utf8 = False
@@ -111,22 +140,93 @@ class Nexus(list):
             with p.open(encoding=config.encoding) as f:
                 return cls(itertools.chain.from_iterable(f), config=config)
 
-    def to_file(self, p):
-        p = pathlib.Path(p)
-        p.write_text(str(self), encoding=self.cfg.encoding)
+    @property
+    def blocks(self) -> typing.Dict[str, typing.List[Block]]:
+        """
+        A `dict` mapping uppercase block names to lists of instances of these blocks ordered as they
+        appear in the NEXUS content.
+
+        For a shortcut to access blocks which are known to appear just once in the NEXUS content,
+        see :meth:`Nexus.__getattribute__`.
+        """
+        res = collections.defaultdict(list)
+        for block in self.iter_blocks():
+            res[block.name].append(block)
+        return res
+
+    def __getattribute__(self, name):
+        """
+        NEXUS does not make any prescriptions regarding how many blocks with the same name may
+        exist in a file. Thus, the primary way to access blocks is by looking up the list of blocks
+        for a given name in :meth:`Nexus.blocks`. If it can be assumed that just one block for a
+        name exists, or only the first block with that name is of interest, this block can also be
+        accessed as `Nexus.<BLOCK_NAME>`, i.e. using the uppercase block name as attribute of the
+        `Nexus` instance.
+
+        .. code-block:: python
+
+            >>> nex = Nexus('#NEXUS begin block; cmd; end;')
+            >>> nex.BLOCK.name
+            'BLOCK'
+            >>> len(nex.BLOCK.commands)
+            1
+        """
+        if name.isupper():
+            try:
+                return self.blocks[name][0]
+            except IndexError:
+                return None
+        return list.__getattribute__(self, name)
 
     def __str__(self):
+        """
+        The string representation of a `Nexus` object is just its NEXUS content.
+
+        .. code-block:: python
+
+            >>> nex = Nexus()
+            >>> nex.append_block(Block.from_commands([]))
+            >>> print(nex)
+            #NEXUS
+            BEGIN BLOCK;
+            END;
+        """
         return NEXUS \
             + ''.join(''.join(str(t) for t in cmd) for cmd in self) \
             + ''.join(str(t) for t in self.trailing_whitespace)
+
+    def to_file(self, p: typing.Union[str, pathlib.Path]):
+        """
+        Write the NEXUS content of a `Nexus` object to a file.
+        """
+        p = pathlib.Path(p)
+        p.write_text(str(self), encoding=self.cfg.encoding)
+
+    def word_as_nexus_string(self, word):
+        return Word(word).as_nexus_string(self.cfg.quote)
 
     def iter_comments(self):
         for cmd in self:
             yield from (t for t in cmd if t.type == TokenType.COMMENT)
 
     @property
-    def comments(self):
-        return list(self.iter_comments())
+    def comments(self) -> typing.List[str]:
+        """
+        Comments may appear anywhere in a NEXUS file. Thus, they are the only kind of tokens not
+        really grouped into a command.
+
+        While comments **in** commands can also be accessed from the command, comments preceding
+        any command (and all others) can accessed via this property.
+
+        .. code-block:: python
+
+            >>> nex = Nexus("#nexus [created by commonnexus] begin block; cmd [does nothing]; end;")
+            >>> nex.BLOCK.CMD.comments
+            ['does nothing']
+            >>> nex.comments[0]
+            'created by commonnexus'
+        """
+        return [t.text for t in self.iter_comments()]
 
     def iter_blocks(self):
         block = None
@@ -152,13 +252,6 @@ class Nexus(list):
             #
             valid = valid and block.validate(log=log)
         return valid
-
-    @property
-    def blocks(self):
-        res = collections.defaultdict(list)
-        for block in self.iter_blocks():
-            res[block.name].append(block)
-        return res
 
     def resolve_set_spec(self, object_name, spec, chars=None):
         """
@@ -230,52 +323,35 @@ class Nexus(list):
             labels = {i + 1: str(i + 1) for i in range(n)}
         return [labels[n] for n in numbers(n)]
 
-    def remove_block(self, block):
+    def remove_block(self, block: Block):
         for cmd in block:
             self.remove(cmd)
 
-    def append_block(self, block):
+    def append_block(self, block: Block):
         block.nexus = self
         self.extend(block)
 
-    def replace_block(self, block, cmds):
+    def replace_block(self,
+                      old: Block,
+                      new: typing.Union[Block, typing.List[typing.Tuple[str, str]]]):
         for i, cmd in enumerate(self):
-            if cmd is block[0]:
+            if cmd is old[0]:
                 break
         else:
             raise ValueError('Block not found')  # pragma: no cover
 
-        for cmd in block[1:-1]:
+        for cmd in old[1:-1]:
             self.remove(cmd)
 
-        if isinstance(cmds, Block):
-            cmds.nexus = self
-            for cmd in reversed(cmds[1:-1]):
+        if isinstance(new, Block):
+            new.nexus = self
+            for cmd in reversed(new[1:-1]):
                 self.insert(i + 1, cmd)
         else:
-            for n, payload in reversed(cmds):
+            for n, payload in reversed(new):
                 self.insert(i + 1, Command.from_name_and_payload(n, payload, quote=self.cfg.quote))
 
     def append_command(self, block, name, payload=None):
         self.insert(
             self.index(block[-1]),
             Command.from_name_and_payload(name, payload, quote=self.cfg.quote))
-
-    def __getattribute__(self, name):
-        """
-        NEXUS does not make any prescriptions regarding how many blocks with the same name may
-        exist in a file. Thus, the primary way to access blocks is by looking up the list of blocks
-        for a given name in :meth:`Nexus.blocks <Nexus.blocks>`. If it can be assumed that just one
-        block for a name exists, or only the first block with that name is of interest, this block
-        can also be accessed as `Nexus.<BLOCK_NAME>`, i.e. using the uppercase block name as
-        attribute of the `Nexus` instance.
-
-        :param name:
-        :return:
-        """
-        if name.isupper():
-            try:
-                return self.blocks[name][0]
-            except IndexError:
-                return None
-        return list.__getattribute__(self, name)

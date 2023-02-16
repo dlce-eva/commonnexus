@@ -37,4 +37,5 @@ html_css_files = [
 ]
 typehints_fully_qualified = True
 always_document_param_types = True
+autodoc_member_order = 'bysource'
 

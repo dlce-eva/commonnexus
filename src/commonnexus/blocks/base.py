@@ -16,7 +16,7 @@ import collections
 
 from commonnexus._compat import cached_property
 from commonnexus.tokenizer import (
-    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals,
+    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType
 )
 from commonnexus.command import Command
 
@@ -30,6 +30,10 @@ class Payload:
     def __init__(self, tokens, nexus=None):
         self.nexus = nexus
         self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
+
+    @cached_property
+    def comments(self):
+        return [t.text for t in self._tokens if t.type == TokenType.COMMENT]
 
     def format(self, *args, **kw):
         """

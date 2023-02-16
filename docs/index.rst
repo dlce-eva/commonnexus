@@ -30,7 +30,7 @@ each time. Thus, if you use this package (or just its documentation), make sure 
 
 
 .. toctree::
-   :maxdepth: 3
+   :maxdepth: 4
    :caption: Contents:
 
    nexus

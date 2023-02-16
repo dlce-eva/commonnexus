@@ -13,78 +13,117 @@ From the specification:
     unfamiliar parts of the file, permits sharing of the file by various programs, and permits
     future expansion to encompass new information.
 
-    The eight primary public blocks are TAXA, CHARACTERS, UNALIGNED, DISTANCES, SETS, ASSUMPTIONS,
-    CODONS, TREES, and NOTES.
+    The eight [sic] primary public blocks are TAXA, CHARACTERS, UNALIGNED, DISTANCES, SETS,
+    ASSUMPTIONS, CODONS, TREES, and NOTES.
 
 
-Characters
-----------
-
-.. autoclass:: commonnexus.blocks.characters.Characters
-    :members:
-
-.. automodule:: commonnexus.blocks.characters
-    :members:
-    :exclude-members: Characters, Data
-
-
-Taxa
+TAXA
 ----
 
 .. autoclass:: commonnexus.blocks.taxa.Taxa
     :members:
+
+
+TAXA Commands
+~~~~~~~~~~~~~
 
 .. automodule:: commonnexus.blocks.taxa
     :members:
     :exclude-members: Taxa
 
 
-Trees
------
+CHARACTERS (and DATA)
+---------------------
 
-.. autoclass:: commonnexus.blocks.trees.Trees
+.. autoclass:: commonnexus.blocks.characters.Characters
     :members:
 
-.. automodule:: commonnexus.blocks.trees
+.. autoclass:: commonnexus.blocks.characters.Data
     :members:
-    :exclude-members: Trees
 
 
-Distances
+CHARACTERS Commands
+~~~~~~~~~~~~~~~~~~~
+
+.. automodule:: commonnexus.blocks.characters
+    :members:
+    :exclude-members: Characters, Data
+
+
+UNALIGNED [not supported]
+-------------------------
+
+.. autoclass:: commonnexus.blocks.unaligned.Unaligned
+
+
+DISTANCES
 ---------
 
 .. autoclass:: commonnexus.blocks.distances.Distances
     :members:
+
+
+DISTANCES Commands
+~~~~~~~~~~~~~~~~~~
 
 .. automodule:: commonnexus.blocks.distances
     :members:
     :exclude-members: Distances
 
 
-Sets
+SETS
 ----
 
 .. autoclass:: commonnexus.blocks.sets.Sets
     :members:
+
+
+SETS Commands
+~~~~~~~~~~~~~
 
 .. automodule:: commonnexus.blocks.sets
     :members:
     :exclude-members: Sets
 
 
-Notes
+ASSUMPTIONS [not supported]
+---------------------------
+
+.. autoclass:: commonnexus.blocks.assumptions.Assumptions
+    :members:
+
+
+CODONS [not supported]
+----------------------
+
+.. autoclass:: commonnexus.blocks.codons.Codons
+
+
+TREES
+-----
+
+.. autoclass:: commonnexus.blocks.trees.Trees
+    :members:
+
+
+TREES Commands
+~~~~~~~~~~~~~~
+
+.. automodule:: commonnexus.blocks.trees
+    :members:
+    :exclude-members: Trees
+
+
+NOTES
 -----
 
 .. autoclass:: commonnexus.blocks.notes.Notes
     :members:
 
+
+NOTES Commands
+~~~~~~~~~~~~~~
+
 .. automodule:: commonnexus.blocks.notes
     :members:
     :exclude-members: Notes
-
-
-Assumptions
------------
-
-.. autoclass:: commonnexus.blocks.assumptions.Assumptions
-    :members:
