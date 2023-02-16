@@ -42,7 +42,8 @@ class Taxlabels(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         self.labels = collections.OrderedDict(
-            [(n, w) for n, w in enumerate(iter_words_and_punctuation(tokens), start=1)])
+            [(n, w) for n, w in enumerate(
+                iter_words_and_punctuation(tokens, nexus=nexus), start=1)])
         assert len(self.labels) == len(set(self.labels.values())), 'Duplicates in TAXLABELS'
         assert not set(str(n) for n in self.labels).intersection(self.labels.values()), 'TAXLABELS'
 

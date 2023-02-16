@@ -16,7 +16,7 @@ NEXUS = '#NEXUS'
 @dataclasses.dataclass
 class Config:
     """
-    The global parsing behaviour of a :class:`Nexus` instance can be configured.
+    The global behaviour of a :class:`Nexus` instance can be configured.
     The available configuration options are set and accessed from an instance of `Config`.
     """
     #: Specifies whether "-", aka ASCII hyphen-minus, is considered punctuation or not.
@@ -24,7 +24,8 @@ class Config:
     #: Specifies whether Newick nodes for TREEs are constructed by parsing the Newick string or
     #: from the Nexus tokens. The latter is slightly faster but will bypass some input validation.
     validate_newick: bool = False
-    #: Specifies whether unsupported NEXUS commands/options are ignored or raise an error.
+    #: Specifies whether unsupported NEXUS commands/options are ignored or raise an error. Note \
+    #: that the effect of this option may only set in when a block or command is accessed.
     ignore_unsupported: bool = True
     #: Specifies the text encoding of a NEXUS file.
     encoding: str = 'utf8'

@@ -107,7 +107,7 @@ class Format(Payload):
         if tokens is None:
             return
 
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
 
         def word_after_equals():
             n = next(words)
@@ -240,7 +240,7 @@ class Distances(Block):
             list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
             start=1
         ):
-            words = iter_words_and_punctuation(line)
+            words = iter_words_and_punctuation(line, nexus=self.nexus)
 
             if (not format.labels) and required_cols() == 0 and 1 not in res:
                 # NODIAGONAL NOLABELS TRIANGLE=LOWER

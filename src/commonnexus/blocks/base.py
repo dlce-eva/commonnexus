@@ -57,7 +57,7 @@ class Title(Payload):
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.title = next(iter_words_and_punctuation(self._tokens)).upper()
+        self.title = next(iter_words_and_punctuation(self._tokens, nexus=nexus)).upper()
         assert isinstance(self.title, str)
 
 
@@ -69,7 +69,7 @@ class Link(Payload):
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         self.block = next(words).upper()
         self.title = word_after_equals(words).upper()
 

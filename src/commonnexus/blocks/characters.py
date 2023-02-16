@@ -60,7 +60,7 @@ class Dimensions(Payload):
         self.newtaxa = False
         self.ntax = None
         self.char = None
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         while 1:
             try:
                 word = next(words)
@@ -305,7 +305,7 @@ class Format(Payload):
         if tokens is None:
             return
 
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         after_equals = functools.partial(word_after_equals, words)
 
         subcommand = None
@@ -466,7 +466,7 @@ class Charstatelabels(Payload):
         super().__init__(tokens, nexus=nexus)
         self.characters = []
 
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         num, name, states, in_states = None, None, [], False
 
         while 1:
@@ -522,7 +522,7 @@ class Charlabels(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         self.characters = []
-        for i, w in enumerate(iter_words_and_punctuation(self._tokens)):
+        for i, w in enumerate(iter_words_and_punctuation(self._tokens, nexus=nexus)):
             assert isinstance(w, str)
             self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
 
@@ -557,7 +557,7 @@ class Statelabels(Payload):
         super().__init__(tokens, nexus=nexus)
         self.characters = []
 
-        words = iter_words_and_punctuation(self._tokens)
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         num, states = None, []
 
         while 1:

@@ -54,7 +54,7 @@ class Translate(Payload):
         # get a word, and another word, then look for comma.
         self.mapping = collections.OrderedDict()
         key, value = None, None
-        for t in iter_words_and_punctuation(self._tokens):
+        for t in iter_words_and_punctuation(self._tokens, nexus=nexus):
             if not key:
                 assert isinstance(t, str)
                 key = t

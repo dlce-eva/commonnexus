@@ -203,7 +203,7 @@ class Word(str):
         return hash(str(self))
 
 
-def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
+def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=None):
     """
     Word
 
@@ -238,6 +238,8 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None):
         two punctuation characters, and the word "words".
     """
     allow_punctuation_in_word = allow_punctuation_in_word or ''
+    if not allow_punctuation_in_word and nexus is not None:
+        allow_punctuation_in_word = '-' if nexus.cfg.hyphenminus_is_text else ''
     word = ''
     for i, token in enumerate(tokens):
         if token.type == TokenType.QWORD:
@@ -268,6 +270,9 @@ def iter_key_value_pairs(tokens, allow_punctuation_in_word=None):
     :return:
     """
     key, e, value, b = None, False, [], False
+    #
+    # FIXME: need to pass nexus to iter_words_and_punctuation
+    #
     for t in iter_words_and_punctuation(
             tokens, allow_punctuation_in_word=allow_punctuation_in_word):
         if key is None:
