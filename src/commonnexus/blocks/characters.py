@@ -1,9 +1,10 @@
 import types
+import typing
 import functools
 import collections
-import typing
 
 from .base import Block, Payload
+from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import (
     iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN, word_after_equals, Word,
 )
@@ -32,7 +33,10 @@ class Eliminate(Payload):
     .. warning:: The ``ELIMINATE`` command is currently not supported in `commonnexus`.
     """
     def __init__(self, tokens, nexus=None):
+        print('we are called')
         super().__init__(tokens, nexus=nexus)
+        if nexus is not None and not nexus.cfg.ignore_unsupported:
+            raise NotImplementedError('The ELIMINATE command is not supported')
 
 
 class Dimensions(Payload):
@@ -318,7 +322,7 @@ class Format(Payload):
                         if subcommand == 'LABELS' and word == 'left':
                             word = 'yes'
                         setattr(self, subcommand.lower(), BOOLEAN[word])
-                    elif subcommand:
+                    elif subcommand:  # pragma: no cover
                         raise ValueError(subcommand)
 
                 if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
@@ -355,7 +359,7 @@ class Format(Payload):
                                     self.equate[key] = tuple(t)
                                 elif bracket == '{':
                                     self.equate[key] = set(t)
-                                else:
+                                else:  # pragma: no cover
                                     raise ValueError(
                                         'Invalid punctuation in EQUATE content: {}'.format(bracket))
                                 key, e = None, False
@@ -372,21 +376,30 @@ class Format(Payload):
             self.datatype = self.datatype.upper()
             assert self.datatype in {
                 'STANDARD', 'DNA', 'RNA', 'NUCLEOTIDE', 'PROTEIN', 'CONTINUOUS'}
+            if self.datatype == 'CONTINUOUS':
+                raise NotImplementedError('DATATYPE=CONTINUOUS is not supported!')
         self.items = [i.upper() for i in self.items]
         assert all(
             i in 'MIN MAX MEDIAN AVERAGE VARIANCE STDERROR SAMPLESIZE STATES'.split()
             for i in self.items)
         if not self.items:
             self.items = ['STATES']
+        if self.items != ['STATES']:
+            raise NotImplementedError('Only ITEMS=STATES is supported!')
         if self.statesformat:
             self.statesformat = self.statesformat.upper()
             assert self.statesformat in {'STATESPRESENT', 'INDIVIDUALS', 'COUNT', 'FREQUENCY'}
         else:
             self.statesformat = 'STATESPRESENT'
+        if self.statesformat != 'STATESPRESENT':
+            raise NotImplementedError(
+                'STATESFORMATs other than STATESPRESENT are not supported')
         for attr in ['missing', 'gap', 'matchchar']:
             c = getattr(self, attr)
             if c:
                 assert len(c) == 1 and c not in INVALID_SYMBOLS
+        if self.tokens:
+            raise NotImplementedError('TOKENS is not supported')
 
         if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
             T = 'U' if self.datatype == 'RNA' else 'T'
@@ -768,18 +781,13 @@ class Characters(Block):
         """
         format = Format(None) if 'FORMAT' not in self.commands else self.FORMAT
 
-        if format.datatype == 'CONTINUOUS' or \
-                any(i != 'STATES' for i in format.items) or \
-                format.tokens or \
-                'ELIMINATE' in self.commands or \
-                (format.statesformat and format.statesformat != 'STATESPRESENT'):
-            raise NotImplementedError()
-
         # Determine dimensions and labels:
         ntax, taxlabels = self.get_taxlabels(format)
         nchar = self.DIMENSIONS.nchar
         charlabels, statelabels = self.get_charstatelabels(
             nchar, format, labeled_states=labeled_states)
+        if format.transpose and (not format.interleave) and (format.labels != False) and (not ntax):
+            raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
 
         # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
         # ordered dictionary mapping row labels (or numbers) to lists of entries.
@@ -810,7 +818,7 @@ class Characters(Block):
                         elif t.text == '{':
                             entries.append(set(next(words)))
                             assert next(words).text == '}'
-                        else:
+                        else:  # pragma: no cover
                             raise ValueError('Unexpected punctuation in matrix')
                     else:
                         entries.extend(list(t))  # We split a word into a list of symbols.
@@ -829,10 +837,8 @@ class Characters(Block):
         cols = ncols or len(list(res.values())[0])
         assert all(len(states) == cols for states in res.values())
         if not taxlabels:
-            if format.transpose:
-                taxlabels = {i + 1: str(i + 1) for i in range(cols)}
-            else:
-                taxlabels = {i + 1: key for i, key in enumerate(res)}
+            assert not format.transpose
+            taxlabels = {i + 1: key for i, key in enumerate(res)}
 
         def apply_to_state(func, state, *args, **kw):
             # We have to do a bit of mapping and renaming, which always needs to deal with the
@@ -843,7 +849,7 @@ class Characters(Block):
                 return tuple(func(s, *args, **kw) for s in state)
             if isinstance(state, set):
                 return set(func(s, *args, **kw) for s in state)
-            raise ValueError(state)
+            raise ValueError(state)  # pragma: no cover
 
         def replace_symbol(s, i, r):
             if (format.respectcase and s == format.missing) or \
@@ -951,10 +957,10 @@ class Characters(Block):
 
     def validate(self, log=None):
         if 'TAXLABELS' in self.commands and not self.DIMENSIONS.newtaxa:
-            log.error(
+            return log_or_raise(
                 'TAXLABELS may only be defined in {} block if NEWTAXA is specified.'.format(
-                    self.name))
-            return False
+                    self.name),
+                log=log)
         return True
 
     @classmethod
@@ -1008,8 +1014,8 @@ class Characters(Block):
         :param gap:
         :param kw:
         """
-        if datatype != 'STANDARD':
-            raise NotImplementedError()
+        if datatype != 'STANDARD':  # pragma: no cover
+            raise NotImplementedError('Only DATATYPE=STANDARD is supported for writing CHARACTERS')
         nexus = kw.pop('nexus', None)
         symbols, rows, charlabels, maxlen, tlabels = set(), [], None, 0, {}
         for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
@@ -1029,7 +1035,7 @@ class Characters(Block):
                 if isinstance(entry, tuple):  # polymorphism -> ()
                     row.append('({})'.format(''.join(symbol(c) for c in entry)))
                 elif isinstance(entry, set):  # uncertainty -> {}
-                    row.append('{{{}}}'.format(''.join(symbol(c) for c in entry)))
+                    row.append('{{{}}}'.format(''.join(sorted(symbol(c) for c in entry))))
                 else:
                     row.append(symbol(entry))
             rows.append('\n    {} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))

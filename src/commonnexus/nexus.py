@@ -17,11 +17,13 @@ class Config:
                  quote="'",
                  hyphenminus_is_text=False,
                  validate_newick=False,
+                 ignore_unsupported=False,
                  encoding='utf8'):
         self.quote = quote
         self.hyphenminus_is_text = hyphenminus_is_text
         self.validate_newick=validate_newick
         self.encoding = encoding
+        self.ignore_unsupported = ignore_unsupported
 
 
 class Nexus(list):

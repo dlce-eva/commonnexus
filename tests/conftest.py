@@ -13,6 +13,9 @@ def fixture_dir():
 @pytest.fixture
 def nexus():
     def make_one(**blocks):
+        cfg = blocks.pop('config', None)
         block = lambda name, text: 'BEGIN {};\n{}\nEND;'.format(name, text)
-        return Nexus('#nexus\n{}'.format('\n'.join(block(n, t) for n, t in blocks.items())))
+        return Nexus(
+            '#nexus\n{}'.format('\n'.join(block(n, t) for n, t in blocks.items())),
+            config=cfg)
     return make_one
