@@ -162,7 +162,7 @@ class Distances(Block):
     .. rst-class:: nexus
 
         | BEGIN DISTANCES;
-        |   [:class:`DIMENSIONS <Dimensions>` [NEWTAXA] NTAX=number-of-taxa NCHAR=number-of-characters;]
+        |   [:class:`DIMENSIONS <Dimensions>` [NEWTAXA] NTAX=num-taxa NCHAR=num-characters;]
         |   [:class:`FORMAT <Format>`
         |     [TRIANGLE={LOWER | UPPER | BOTH}]
         |     [[NO]DIAGONAL]
@@ -266,8 +266,6 @@ class Distances(Block):
                 # We collected a row of entries, now append them to the correct taxon.
                 # If we have a label, that's easy.
                 if not label:
-                    #assert not (format.triangle == 'UPPER' and format.labels is False), \
-                    #    "The case INTERLEAVE NOLABELS TRIANGLE=UPPER is underspecified!"
                     for ri in taxlabels:
                         if ri not in res:
                             # First pass must go through all taxa!
@@ -316,8 +314,7 @@ class Distances(Block):
                 matrix[la][lb] = res[la][nb - 1]
                 matrix[lb][la] = res[lb][na - 1]
             else:
-                # nb >= na!
-                val = res[la][nb - 1] if format.triangle == 'UPPER' else res[lb][na -1]
+                val = res[la][nb - 1] if format.triangle == 'UPPER' else res[lb][na - 1]
                 if nb != na:
                     matrix[la][lb] = matrix[lb][la] = val
                 else:

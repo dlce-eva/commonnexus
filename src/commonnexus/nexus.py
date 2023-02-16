@@ -21,7 +21,7 @@ class Config:
                  encoding='utf8'):
         self.quote = quote
         self.hyphenminus_is_text = hyphenminus_is_text
-        self.validate_newick=validate_newick
+        self.validate_newick = validate_newick
         self.encoding = encoding
         self.ignore_unsupported = ignore_unsupported
 
@@ -168,7 +168,6 @@ class Nexus(list):
         :param spec:
         :return:
         """
-        print(spec)
         def numbers(maxn):
             res = []
             start, r = None, False

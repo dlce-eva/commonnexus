@@ -11,9 +11,8 @@ matrix
 
 """
 import re
-import collections
-import types
 import typing
+import collections
 
 from commonnexus._compat import cached_property
 from commonnexus.tokenizer import (
@@ -78,7 +77,7 @@ class Block(tuple):
     # Custom `Payload` subclasses can be registered for command names:
     __commands__ = {}
 
-    def __new__ (cls, nexus, cmds):
+    def __new__(cls, nexus, cmds):
         return super().__new__(cls, tuple(cmds))
 
     def __init__(self, nexus, cmds):

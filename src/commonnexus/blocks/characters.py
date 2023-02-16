@@ -577,7 +577,7 @@ class Statelabels(Payload):
             except StopIteration:
                 break
         if num and states:
-           self.characters.append(types.SimpleNamespace(number=num, name=None, states=states))
+            self.characters.append(types.SimpleNamespace(number=num, name=None, states=states))
 
 
 class Matrix(Payload):
@@ -796,7 +796,8 @@ class Characters(Block):
         ncols, nrows = ntax if format.transpose else nchar, nchar if format.transpose else ntax
 
         for i, line in enumerate(
-                list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
+                list(iter_lines(self.MATRIX._tokens)) if format.interleave else
+                [self.MATRIX._tokens],
                 start=1):
             words = iter_words_and_punctuation(line, allow_punctuation_in_word='+-')
             while 1:
@@ -1022,7 +1023,7 @@ class Characters(Block):
             tlabels[taxon] = Word(taxon).as_nexus_string()
             maxlen = max([maxlen, len(tlabels[taxon])])
 
-        symbol = lambda c: missing if c is None else (gap if c == GAP else c)
+        symbol = lambda c: missing if c is None else (gap if c == GAP else c)  # noqa: E731
 
         for taxon, entries in matrix.items():
             if not charlabels:

@@ -12,12 +12,12 @@ class Translate(Payload):
     """
     The tree description requires references to the taxa defined in a TAXA, DATA,
     CHARACTERS, UNALIGNED, or DISTANCES block. These references can be made using the label assigned
-    to them in the TAXA or DATA blocks, their numbers, or a token specified in the TRANSLATE command.
-    The TRANSLATE statement maps arbitrary labels in the tree specification to valid taxon names.
-    If the arbitrary labels are integers, they are mapped onto the valid taxon names as dictated by
-    the TRANSLATE command without any consideration of the order of the taxa in the matrix. Thus,
-    if an integer is encountered in the tree description, a program first checks to see if
-    it matches one of the arbitrary labels defined in the TRANSLATE command; only if
+    to them in the TAXA or DATA blocks, their numbers, or a token specified in the TRANSLATE
+    command. The TRANSLATE statement maps arbitrary labels in the tree specification to valid taxon
+    names. If the arbitrary labels are integers, they are mapped onto the valid taxon names as
+    dictated by the TRANSLATE command without any consideration of the order of the taxa in the
+    matrix. Thus, if an integer is encountered in the tree description, a program first checks to
+    see if it matches one of the arbitrary labels defined in the TRANSLATE command; only if
     no matching label is found will the integer be presumed to refer to the taxon in that
     position in the matrix (e.g., if the label in the description is 15, but this is not a label
     defined in the TRANSLATE command, a program should take this to refer to the 15th taxon).
@@ -207,7 +207,7 @@ class Tree(Payload):
         # Quicker but by-passes some validation: Instantiate NewickString from pre-parsed Nexus
         # tokens!
         nt = [newick.Token('(', newick.TokenType.OBRACE, 0)]
-        word, l = [], 1
+        word, level = [], 1
 
         for token in self._remaining_tokens:
             # now we assemble newick string and newick tokens in one go.
@@ -217,26 +217,27 @@ class Tree(Payload):
                 if token.text in newick.RESERVED_PUNCTUATION:
                     # delimits words!
                     if word:
-                        nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+                        nt.append(newick.Token(''.join(word), newick.TokenType.WORD, level))
                         word = []
                     if token.text == ')':
-                        l -= 1
-                    nt.append(newick.Token(token.text, newick.RESERVED_PUNCTUATION[token.text], l))
+                        level -= 1
+                    nt.append(
+                        newick.Token(token.text, newick.RESERVED_PUNCTUATION[token.text], level))
                     if token.text == '(':
-                        l += 1
+                        level += 1
                 else:
                     word.append(token.text)
             elif token.type == TokenType.COMMENT:
                 if word:
-                    nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+                    nt.append(newick.Token(''.join(word), newick.TokenType.WORD, level))
                     word = []
-                nt.append(newick.Token('[' + token.text + ']', newick.TokenType.COMMENT, l))
+                nt.append(newick.Token('[' + token.text + ']', newick.TokenType.COMMENT, level))
             elif token.type == TokenType.QWORD:
                 assert not word  # As in NEXUS, a newick QWORD can not follow a WORD.
                 nt.append(
-                    newick.Token(Word(token.text).as_nexus_string(), newick.TokenType.QWORD, l))
+                    newick.Token(Word(token.text).as_nexus_string(), newick.TokenType.QWORD, level))
         if word:
-            nt.append(newick.Token(''.join(word), newick.TokenType.WORD, l))
+            nt.append(newick.Token(''.join(word), newick.TokenType.WORD, level))
         return newick.NewickString(nt).to_node()
 
 
@@ -335,7 +336,7 @@ class Trees(Block):
                 ',\n'.join('{} {}'.format(
                     Word(k).as_nexus_string(quote=quote),
                     Word(v).as_nexus_string(quote=quote))
-                           for k, v in sorted(translate_labels.items()))
+                    for k, v in sorted(translate_labels.items()))
             ))
         for name, nwk, rooted in tree_specs:
             if isinstance(nwk, str):

@@ -1,4 +1,3 @@
-import typing
 import collections
 
 from commonnexus.tokenizer import iter_words_and_punctuation
