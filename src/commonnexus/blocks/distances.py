@@ -3,7 +3,7 @@ import decimal
 import itertools
 import collections
 
-from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines
+from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word
 from .base import Block, Payload
 from . import characters
 from . import taxa
@@ -203,6 +203,8 @@ class Distances(Block):
         format = self.FORMAT or Format(None)
 
         ntax, taxlabels = None, {}
+        if self.DIMENSIONS:
+            ntax = self.DIMENSIONS.ntax
         if self.TAXLABELS:
             taxlabels = self.TAXLABELS.labels
             ntax = self.DIMENSIONS.ntax
@@ -321,3 +323,43 @@ class Distances(Block):
                     matrix[la][lb] = val
 
         return matrix
+
+    @classmethod
+    def from_data(cls,
+                  matrix: typing.OrderedDict[str, typing.OrderedDict[
+                      str, typing.Union[None, float, int, decimal.Decimal]]],
+                  taxlabels: bool = False,
+                  **kw) -> 'Block':
+        """
+        Create a DISTANCES block from the distance matrix `matrix`.
+
+        :param matrix: The distance matrix as dict mapping taxon labels to dicts mapping taxon \
+        labels to numbers. A "full" matrix is expected here, just like it is returned from \
+        :meth:`Distances.get_matrix`.
+        :param taxlabels: Whether to include a TAXLABELS command.
+        """
+        nexus = kw.pop('nexus', None)
+        dimensions = 'NTAX={}'.format(len(matrix))
+        if taxlabels:
+            dimensions = 'NEWTAXA NTAX={} {}'.format(len(matrix), dimensions)
+        cmds = [
+            # DIMENSIONS: necessary if not all taxa are present in the matrix!
+            ('DIMENSIONS', dimensions),
+            ('FORMAT', 'TRIANGLE=BOTH MISSING=?'),
+        ]
+        maxlen, tlabels = 0, {}
+        for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
+            tlabels[taxon] = Word(taxon).as_nexus_string()
+            maxlen = max([maxlen, len(tlabels[taxon])])
+
+        if taxlabels:
+            cmds.append((
+                'TAXLABELS', ' '.join(Word(label).as_nexus_string() for label in tlabels.values())))
+
+        mrows = []
+        for taxon, dists in matrix.items():
+            row = [tlabels[taxon].ljust(maxlen)]
+            row.extend(['?' if v is None else str(v) for v in dists.values()])
+            mrows.append(' '.join(row))
+        cmds.append(('MATRIX', ''.join('\n    ' + row for row in mrows)))
+        return cls.from_commands(cmds, nexus=nexus)

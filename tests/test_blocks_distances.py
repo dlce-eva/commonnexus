@@ -3,6 +3,7 @@ import decimal
 import pytest
 
 from commonnexus import Nexus
+from commonnexus.blocks.distances import Distances
 
 
 @pytest.mark.parametrize(
@@ -114,13 +115,17 @@ BEGIN DISTANCES;
     {}
 END;"""]:
         dist = Nexus("#NEXUS\n{}".format(fmt.format(matrix))).DISTANCES
-        assert dist.get_matrix()['taxon_4'] == dict(
+        m = dist.get_matrix()
+        assert m['taxon_4'] == dict(
             taxon_1=decimal.Decimal('4.0'),
             taxon_2=decimal.Decimal('5.0'),
             taxon_3=decimal.Decimal('6.0'),
             taxon_4=decimal.Decimal('0.0'),
             taxon_5=decimal.Decimal('10.0'),
         )
+        nex = Nexus()
+        nex.append_block(Distances.from_data(m, nexus=nex))
+        assert m == nex.DISTANCES.get_matrix()
 
 
 def test_minimal():
@@ -137,3 +142,16 @@ def test_splitstree(fixture_dir):
     nex = Nexus.from_file(fixture_dir / 'woodmouse.nxs')
     assert nex.DISTANCES
     assert nex.DISTANCES.get_matrix()['No305']['No1208S'] == decimal.Decimal('0.018828452')
+
+
+def test_Distances_from_data():
+    nex = Nexus()
+    nex.append_block(Distances.from_data({'t1': {'t1': 0}}, taxlabels=True))
+    assert str(nex) == """#NEXUS
+BEGIN DISTANCES;
+DIMENSIONS NEWTAXA NTAX=1 NTAX=1;
+FORMAT TRIANGLE=BOTH MISSING=?;
+TAXLABELS t1;
+MATRIX 
+    t1 0;
+END;"""
