@@ -4,7 +4,7 @@ import itertools
 import collections
 import dataclasses
 
-from .tokenizer import TokenType, iter_tokens, get_name, Word
+from .tokenizer import TokenType, iter_tokens, get_name
 from commonnexus.command import Command
 from commonnexus.blocks import Block
 
@@ -19,8 +19,6 @@ class Config:
     The global parsing behaviour of a :class:`Nexus` instance can be configured.
     The available configuration options are set and accessed from an instance of `Config`.
     """
-    #: Specifies a character to use as delimiter of quoted strings.
-    quote: str = "'"
     #: Specifies whether "-", aka ASCII hyphen-minus, is considered punctuation or not.
     hyphenminus_is_text: bool = False
     #: Specifies whether Newick nodes for TREEs are constructed by parsing the Newick string or
@@ -99,7 +97,7 @@ class Nexus(list):
         if not isinstance(s, list):
             nexus, commands, tokens = False, [], []
             for token in itertools.dropwhile(
-                    lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s, quote=self.cfg.quote)):
+                    lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s)):
                 if not nexus:
                     assert token.type == TokenType.WORD and token.text.upper() == NEXUS
                     nexus = True
@@ -201,9 +199,6 @@ class Nexus(list):
         """
         p = pathlib.Path(p)
         p.write_text(str(self), encoding=self.cfg.encoding)
-
-    def word_as_nexus_string(self, word):
-        return Word(word).as_nexus_string(self.cfg.quote)
 
     def iter_comments(self):
         for cmd in self:
@@ -328,8 +323,11 @@ class Nexus(list):
             self.remove(cmd)
 
     def append_block(self, block: Block):
-        block.nexus = self
         self.extend(block)
+
+    def prepend_block(self, block: Block):
+        for cmd in reversed(block):
+            self.insert(0, cmd)
 
     def replace_block(self,
                       old: Block,
@@ -349,9 +347,9 @@ class Nexus(list):
                 self.insert(i + 1, cmd)
         else:
             for n, payload in reversed(new):
-                self.insert(i + 1, Command.from_name_and_payload(n, payload, quote=self.cfg.quote))
+                self.insert(i + 1, Command.from_name_and_payload(n, payload))
 
     def append_command(self, block, name, payload=None):
         self.insert(
             self.index(block[-1]),
-            Command.from_name_and_payload(name, payload, quote=self.cfg.quote))
+            Command.from_name_and_payload(name, payload))

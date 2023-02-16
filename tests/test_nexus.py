@@ -143,9 +143,8 @@ def test_Nexus_validate(caplog):
 
 
 def test_Config(fixture_dir):
-    nex = Nexus.from_file(fixture_dir / 'christophchamp_basic.nex', config=Config(quote='"'))
+    nex = Nexus.from_file(fixture_dir / 'christophchamp_basic.nex')
     assert nex.TREES.TREE.name == 'basic bush'
-    assert nex.word_as_nexus_string('basic bush') == '"basic bush"'
 
 
 def test_encoding_guesser(fixture_dir, tmp_path):
@@ -157,7 +156,7 @@ def test_encoding_guesser(fixture_dir, tmp_path):
 
 
 def test_Booleans_With_Values(fixture_dir):
-    nex = Nexus.from_file(fixture_dir / 'christophchamp_dna.nex', config=Config(quote='"'))
+    nex = Nexus.from_file(fixture_dir / 'christophchamp_dna.nex')
     assert nex.DATA.FORMAT.interleave
     assert len(nex.DATA.get_matrix()['Cow']) == 705
 

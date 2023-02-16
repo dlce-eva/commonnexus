@@ -48,17 +48,15 @@ class Token:
     We parse Nexus in one pass, storing the data as list of tokens with enough
     information to extract relevant parts from this list later on.
     """
-    __slots__ = ['text', 'type', 'quote']
+    __slots__ = ['text', 'type']
     text: str
     type: TokenType
-    quote: str
 
     @classmethod
-    def from_text(cls, tokens, type=None, quote=QUOTE):
+    def from_text(cls, tokens, type=None):
         return cls(
             text=''.join(tokens),
-            type=type or (TokenType.WHITESPACE if tokens[-1] in WHITESPACE else TokenType.WORD),
-            quote=quote)
+            type=type or (TokenType.WHITESPACE if tokens[-1] in WHITESPACE else TokenType.WORD))
 
     @property
     def is_semicolon(self):
@@ -80,12 +78,11 @@ class Token:
         if self.type == TokenType.COMMENT:
             return '[{}]'.format(self.text)
         if self.type == TokenType.QWORD:
-            return "{}{}{}".format(
-                self.quote, self.text.replace(self.quote, self.quote + self.quote), self.quote)
+            return "{}{}{}".format(QUOTE, self.text.replace(QUOTE, QUOTE + QUOTE), QUOTE)
         return self.text
 
 
-def iter_tokens(s, quote=QUOTE):
+def iter_tokens(s):
     token, lookahead = [], None
 
     while True:
@@ -93,7 +90,7 @@ def iter_tokens(s, quote=QUOTE):
             c = lookahead or next(s)
             lookahead = None
 
-            if c == quote:  # A quoted string.
+            if c == QUOTE:  # A quoted string.
                 doublequote = False
                 if token:
                     if token[-1] in WHITESPACE:
@@ -105,7 +102,7 @@ def iter_tokens(s, quote=QUOTE):
                 while 1:
                     c = lookahead or next(s)
                     lookahead = None
-                    while c != quote:
+                    while c != QUOTE:
                         token.append(c)
                         c = next(s)
 
@@ -113,11 +110,14 @@ def iter_tokens(s, quote=QUOTE):
                         token.append(c)
                         doublequote = False
                     else:
-                        lookahead = next(s)
-                        if lookahead == quote:
+                        try:
+                            lookahead = next(s)
+                        except StopIteration:
+                            lookahead = None
+                        if lookahead == QUOTE:
                             doublequote = True
                         else:  # End of quoted string
-                            yield Token.from_text(token, TokenType.QWORD)
+                            yield Token.from_text(token, type=TokenType.QWORD)
                             token = []
                             break
                 continue
@@ -189,14 +189,14 @@ class Word(str):
     def __eq__(self, other):
         return self.replace(' ', '_') == other.replace(' ', '_')
 
-    def as_nexus_string(self, quote=QUOTE):
+    def as_nexus_string(self):
         must_quote = False
-        for chars in [WHITESPACE, COMMENT, PUNCTUATION, quote]:
+        for chars in [WHITESPACE, COMMENT, PUNCTUATION, QUOTE]:
             if any(c in self for c in chars):
                 must_quote = True
                 break
         if must_quote:
-            return "{}{}{}".format(quote, self.replace(quote, quote + quote), quote)
+            return "{}{}{}".format(QUOTE, self.replace(QUOTE, QUOTE + QUOTE), QUOTE)
         return self
 
     def __hash__(self):

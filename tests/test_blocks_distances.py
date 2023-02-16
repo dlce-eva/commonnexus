@@ -155,3 +155,14 @@ TAXLABELS t1;
 MATRIX 
     t1 0;
 END;"""
+
+    nex = Nexus()
+    nex.append_block(Distances.from_data({'t 1': {'t 1': 0}}, taxlabels=True, nexus=nex))
+    assert str(nex) == """#NEXUS
+BEGIN DISTANCES;
+DIMENSIONS NEWTAXA NTAX=1 NTAX=1;
+FORMAT TRIANGLE=BOTH MISSING=?;
+TAXLABELS 't 1';
+MATRIX 
+    't 1' 0;
+END;"""

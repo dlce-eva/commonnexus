@@ -1,6 +1,6 @@
 import collections
 
-from commonnexus.tokenizer import iter_words_and_punctuation
+from commonnexus.tokenizer import iter_words_and_punctuation, Word
 from .base import Block, Payload
 
 
@@ -62,3 +62,10 @@ class Taxa(Block):
     Only one of each command is allowed per block.
     """
     __commands__ = [Dimensions, Taxlabels]
+
+    @classmethod
+    def from_data(cls, labels, nexus=None) -> 'Block':
+        return cls.from_commands([
+            ('DIMENSIONS', 'NTAX={}'.format(len(labels))),
+            ('TAXLABELS', ' '.join(Word(w).as_nexus_string() for w in labels)),
+        ], nexus=nexus)

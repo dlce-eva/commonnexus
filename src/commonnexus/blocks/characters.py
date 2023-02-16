@@ -33,7 +33,6 @@ class Eliminate(Payload):
     .. warning:: The ``ELIMINATE`` command is currently not supported in `commonnexus`.
     """
     def __init__(self, tokens, nexus=None):
-        print('we are called')
         super().__init__(tokens, nexus=nexus)
         if nexus is not None and not nexus.cfg.ignore_unsupported:
             raise NotImplementedError('The ELIMINATE command is not supported')
@@ -1018,6 +1017,7 @@ class Characters(Block):
         if datatype != 'STANDARD':  # pragma: no cover
             raise NotImplementedError('Only DATATYPE=STANDARD is supported for writing CHARACTERS')
         nexus = kw.pop('nexus', None)
+
         symbols, rows, charlabels, maxlen, tlabels = set(), [], None, 0, {}
         for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
             tlabels[taxon] = Word(taxon).as_nexus_string()
@@ -1057,8 +1057,7 @@ class Characters(Block):
                 ', '.join('\n    {} {}'.format(
                     n, Word(l).as_nexus_string()) for n, l in charlabels.items())))
         if taxlabels:
-            cmds.append((
-                'TAXLABELS', ' '.join(Word(label).as_nexus_string() for label in tlabels.values())))
+            cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
         cmds.append(('MATRIX', ''.join(rows)))
         return cls.from_commands(cmds, nexus=nexus)
 

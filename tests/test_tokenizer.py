@@ -4,6 +4,21 @@ from commonnexus.tokenizer import *
 
 
 @pytest.mark.parametrize(
+    'text,ttype',
+    [
+        ("abcd", TokenType.WORD),
+        ("'a b'", TokenType.QWORD),
+        (" \t\n", TokenType.WHITESPACE),
+        ('+', TokenType.PUNCTUATION),
+        ("[a 'comment+]", TokenType.COMMENT),
+    ]
+)
+def test_iter_tokens(text, ttype):
+    tokens = list(iter_tokens(iter(text)))
+    assert len(tokens) == 1 and tokens[0].type == ttype
+
+
+@pytest.mark.parametrize(
     'text,words',
     [
         ("Bembidion\nB._zephyrum\n'John''s sparrow (eastern) '\n",

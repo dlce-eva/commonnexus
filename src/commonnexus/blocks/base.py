@@ -172,13 +172,10 @@ class Block(tuple):
             >>> str(nex.MYBLOCK.MYCOMMAND)
             'with data'
         """
-        kw = {}
-        if nexus is not None:
-            kw['quote'] = nexus.cfg.quote
-        cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper(), **kw)]
+        cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper())]
         for cname, payload in commands:
-            cmds.append(Command.from_name_and_payload(cname, payload, **kw))
-        cmds.append(Command.from_name_and_payload('END', **kw))
+            cmds.append(Command.from_name_and_payload(cname, payload))
+        cmds.append(Command.from_name_and_payload('END'))
         return cls(nexus, tuple(cmds))
 
     @classmethod

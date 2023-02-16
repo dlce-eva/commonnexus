@@ -339,6 +339,7 @@ class Distances(Block):
         :param taxlabels: Whether to include a TAXLABELS command.
         """
         nexus = kw.pop('nexus', None)
+
         dimensions = 'NTAX={}'.format(len(matrix))
         if taxlabels:
             dimensions = 'NEWTAXA NTAX={} {}'.format(len(matrix), dimensions)
@@ -353,8 +354,7 @@ class Distances(Block):
             maxlen = max([maxlen, len(tlabels[taxon])])
 
         if taxlabels:
-            cmds.append((
-                'TAXLABELS', ' '.join(Word(label).as_nexus_string() for label in tlabels.values())))
+            cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
 
         mrows = []
         for taxon, dists in matrix.items():
