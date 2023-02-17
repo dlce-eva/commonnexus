@@ -18,6 +18,9 @@ class Command(tuple):
 
     @classmethod
     def from_name_and_payload(cls, name, payload=''):
+        #
+        # FIXME: Allow adding comment before or after command!
+        #
         tokens = [Token('\n', TokenType.WHITESPACE)]
         name = list(iter_tokens(iter(name)))
         assert len(name) == 1 and name[0].type == TokenType.WORD

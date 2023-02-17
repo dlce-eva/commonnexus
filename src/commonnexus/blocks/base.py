@@ -137,6 +137,9 @@ class Block(tuple):
             log.info('{} block with {} commands'.format(self.name, len(self) - 2))
         return True
 
+    #
+    # FIXME: Allow adding comments before the block
+    #
     @classmethod
     def from_commands(cls,
                       commands: typing.Iterable[typing.Tuple[str, str]],

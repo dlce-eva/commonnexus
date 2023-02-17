@@ -1,4 +1,5 @@
 """
+\3 -> every third for NUCLEOTIDE
 tests/data/chars/primates.chars.subsets-all.nexus
 begin sets;
 >-------charset coding = 2-457 660-896;
