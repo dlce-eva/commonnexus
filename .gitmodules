@@ -1,0 +1,4 @@
+[submodule "tests/fixtures/dendropy"]
+	path = tests/fixtures/dendropy
+	url = https://github.com/jeetsukumaran/DendroPy
+	branch = main

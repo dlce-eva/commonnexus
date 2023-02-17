@@ -164,17 +164,3 @@ def test_Booleans_With_Values(fixture_dir):
 def test_Mesquite_multitaxa(fixture_dir):
     nex = Nexus.from_file(fixture_dir / 'multitaxa_mesquite.nex')
     assert [char.get_matrix() for char in nex.blocks['CHARACTERS']]
-
-
-#def test_dendropy_suite(fixture_dir):
-#    from clldutils.path import walk
-
-#    def do_test(p):
-#        n = Nexus.from_file(p)
-
-#    for p in walk(fixture_dir / '..' / 'dendropy_test_data', 'files'):
-#        try:
-#            if '#NEXUS' in p.read_text(encoding='utf8'):
-#                do_test(p)
-#        except:
-#            pass

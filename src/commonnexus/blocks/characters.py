@@ -375,7 +375,7 @@ class Format(Payload):
             self.datatype = self.datatype.upper()
             assert self.datatype in {
                 'STANDARD', 'DNA', 'RNA', 'NUCLEOTIDE', 'PROTEIN', 'CONTINUOUS'}
-            if self.datatype == 'CONTINUOUS':
+            if self.datatype == 'CONTINUOUS' and not self.nexus.cfg.ignore_unsupported:
                 raise NotImplementedError('DATATYPE=CONTINUOUS is not supported!')
         self.items = [i.upper() for i in self.items]
         assert all(

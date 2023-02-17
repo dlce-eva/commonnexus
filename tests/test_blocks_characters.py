@@ -194,7 +194,7 @@ MATRIX t1 100 t2 010 t3 001;
     ]
 )
 def test_Characters_not_implemented(commands, nexus):
-    nex = nexus(CHARACTERS=commands)
+    nex = nexus(CHARACTERS=commands, config=Config(ignore_unsupported=False))
     with pytest.raises(NotImplementedError):
         _ = nex.CHARACTERS.commands
 

@@ -1,4 +1,4 @@
-from commonnexus import Nexus, Config
+from commonnexus import Nexus
 from commonnexus.blocks import Block
 
 
