@@ -329,6 +329,9 @@ class Distances(Block):
                   matrix: typing.OrderedDict[str, typing.OrderedDict[
                       str, typing.Union[None, float, int, decimal.Decimal]]],
                   taxlabels: bool = False,
+                  TITLE: typing.Optional[str] = None,
+                  ID: typing.Optional[str] = None,
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
                   **kw) -> 'Block':
         """
         Create a DISTANCES block from the distance matrix `matrix`.
@@ -362,4 +365,4 @@ class Distances(Block):
             row.extend(['?' if v is None else str(v) for v in dists.values()])
             mrows.append(' '.join(row))
         cmds.append(('MATRIX', ''.join('\n    ' + row for row in mrows)))
-        return cls.from_commands(cmds, nexus=nexus)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)

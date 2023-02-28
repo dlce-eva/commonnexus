@@ -1,3 +1,4 @@
+import typing
 import collections
 
 from commonnexus.tokenizer import iter_words_and_punctuation, Word
@@ -65,8 +66,13 @@ class Taxa(Block):
     __commands__ = [Dimensions, Taxlabels]
 
     @classmethod
-    def from_data(cls, labels, nexus=None) -> 'Block':
+    def from_data(cls,
+                  labels,
+                  TITLE: typing.Optional[str] = None,
+                  ID: typing.Optional[str] = None,
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+                  nexus=None) -> 'Block':
         return cls.from_commands([
             ('DIMENSIONS', 'NTAX={}'.format(len(labels))),
             ('TAXLABELS', ' '.join(Word(w).as_nexus_string() for w in labels)),
-        ], nexus=nexus)
+        ], nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)

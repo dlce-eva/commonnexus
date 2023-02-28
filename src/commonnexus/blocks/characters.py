@@ -1,5 +1,6 @@
 import types
 import typing
+import warnings
 import functools
 import collections
 
@@ -467,7 +468,7 @@ class Charstatelabels(Payload):
         self.characters = []
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
-        num, name, states, in_states = None, None, [], False
+        num, name, states, in_states, comma = None, None, [], False, False
 
         while 1:
             try:
@@ -476,6 +477,7 @@ class Charstatelabels(Payload):
                     num = int(w)
                     continue
                 if isinstance(w, Token) and w.text == ',':
+                    comma = True  # We want to be able to detect trailing commas!
                     self.characters.append(
                         types.SimpleNamespace(number=num, name=name, states=states))
                     num, name, states, in_states = None, None, [], False
@@ -491,6 +493,8 @@ class Charstatelabels(Payload):
                 break
         if num:
             self.characters.append(types.SimpleNamespace(number=num, name=name, states=states))
+        elif comma:  # There was a comma, but no new label.
+            warnings.warn('Trailing comma in CHARSTATELABELS command')
 
 
 class Charlabels(Payload):
@@ -891,7 +895,7 @@ class Characters(Block):
                     entries = res[clabel] if clabel in res else res[cnum]
                     matrix[tlabel][clabel] = entries[tnum - 1]
             else:
-                key = tlabel if tlabel in res else tnum
+                key = tlabel if tlabel in res else (tnum if tnum in res else str(tnum))
                 if key in res:
                     # Non-transposed matrices may not have data for each taxon!
                     entries = res[key]
@@ -970,6 +974,9 @@ class Characters(Block):
                   datatype='STANDARD',
                   missing: str = '?',
                   gap: str = '-',
+                  TITLE: typing.Optional[str] = None,
+                  ID: typing.Optional[str] = None,
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
                   **kw) -> 'Characters':
         """
         Instantiate a CHARACTERS or DATA block from a metrix.
@@ -1006,7 +1013,8 @@ class Characters(Block):
             END;
 
         :param matrix: A matrix as returned by :meth:`Characters.get_matrix()`, with unlabeled \
-        states.
+        states. I.e. `None` is used to mark missing values, and `GAP` to mark gapped values. These \
+        special states will be converted to the symbols passed as `missing` and `gap` upon writing.
         :param taxlabels: If `True`, include a TAXLABELS command rather than relying on a TAXA \
         block being present.
         :param datatype:
@@ -1041,15 +1049,17 @@ class Characters(Block):
                     row.append(symbol(entry))
             rows.append('\n    {} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))
 
+        symbols = ''.join(sorted([s for s in symbols if s not in [None, GAP]]))
+        if missing in symbols or (gap in symbols):
+            raise ValueError('MISSING or GAP markers must be distinct from SYMBOLS!')
+
         dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
         if taxlabels:
             dimensions = 'NEWTAXA NTAX={} {}'.format(len(tlabels), dimensions)
         cmds = [
             ('DIMENSIONS', dimensions),
             ('FORMAT', 'DATATYPE=STANDARD MISSING={} GAP={} SYMBOLS="{}"'.format(
-                missing,
-                gap,
-                ''.join(sorted([s for s in symbols if s not in [None, GAP]])))),
+                missing, gap, symbols)),
         ]
         if any(k != v for k, v in charlabels.items()):
             cmds.append((
@@ -1059,7 +1069,7 @@ class Characters(Block):
         if taxlabels:
             cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
         cmds.append(('MATRIX', ''.join(rows)))
-        return cls.from_commands(cmds, nexus=nexus)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
 
 
 class Data(Characters):

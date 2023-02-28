@@ -21,6 +21,8 @@ class Config:
     """
     #: Specifies whether "-", aka ASCII hyphen-minus, is considered punctuation or not.
     hyphenminus_is_text: bool = False
+    #: Specifies whether "*", aka asterisk, is considered punctuation or not.
+    asterisk_is_text: bool = False
     #: Specifies whether Newick nodes for TREEs are constructed by parsing the Newick string or
     #: from the Nexus tokens. The latter is slightly faster but will bypass some input validation.
     validate_newick: bool = False
@@ -354,3 +356,49 @@ class Nexus(list):
         self.insert(
             self.index(block[-1]),
             Command.from_name_and_payload(name, payload))
+
+    # Shortcuts:
+    def has_matrix(self) -> bool:
+        """
+        Determine if a NEXUS file has a characters matrix (in either a DATA or CHARACTERS block).
+        """
+        return bool(self.DATA or self.CHARACTERS)
+
+    def get_matrix(self) -> typing.Optional[typing.OrderedDict]:
+        """
+        :return: The (first) characters matrix in a NEXUS file (from DATA or CHARACTERS).
+        """
+        assert not (self.DATA and self.CHARACTERS)
+        if self.has_matrix():
+            return (self.DATA or self.CHARACTERS).get_matrix()
+
+    def get_taxa(self) -> typing.Optional[typing.List[str]]:
+        """
+        :return: The list of taxa labels used in a NEXUS file.
+
+        .. note::
+
+            There are various ways to encode taxa labels in a NEXUS file. This method looks up
+            different places ordered by explicitness, i.e.
+
+            1. A TAXLABELS command in a TAXA block.
+            2. A TAXLABELS command in a DATA or CHARACTERS block.
+            3. Taxa labels given implicitly as labels in a MATRIX command.
+            4. Taxa labels given as mappings in the TRANSLATE command of a TREES block.
+            5. Taxa labels given implicitly as node names in the Newick representation of a tree in
+               a TREE command in a TREES block.
+
+        .. warning::
+
+            Taxa descriptions in NEXUS may be inconsistent, e.g. a NEXUS file might contain a
+            TAXA block, but introduce new taxa via NEWTAXA/TAXLABELS in a CHARACTERS block.
+            `commonnexus` does not make an effort to check for consistency.
+        """
+        if self.TAXA and len(self.blocks['TAXA']) == 1:
+            return list(self.TAXA.TAXLABELS.labels.values())
+        if self.has_matrix():
+            return list(self.get_matrix())
+        if self.TREES:
+            if self.TREES.TRANSLATE:
+                return list(self.TREES.TRANSLATE.mapping.values())
+            return [node.name for node in self.TREES.TREE.newick.walk() if node.name]

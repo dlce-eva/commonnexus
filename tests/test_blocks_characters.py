@@ -121,6 +121,11 @@ END;""")
     assert matrix['t1']['2'] == 'x'
 
 
+def test_Characters_from_data_invalid():
+    with pytest.raises(ValueError):  # The MISSING marker is used as value in the matrix.
+        _ = Characters.from_data({'t1': {'c1': '?'}})
+
+
 def test_Characters_from_data():
     nex = Nexus("""#NEXUS
 BEGIN TAXA;

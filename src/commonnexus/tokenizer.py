@@ -239,7 +239,10 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=Non
     """
     allow_punctuation_in_word = allow_punctuation_in_word or ''
     if not allow_punctuation_in_word and nexus is not None:
-        allow_punctuation_in_word = '-' if nexus.cfg.hyphenminus_is_text else ''
+        if nexus.cfg.hyphenminus_is_text:
+            allow_punctuation_in_word += '-'
+        if nexus.cfg.asterisk_is_text:
+            allow_punctuation_in_word += "*"
     word = ''
     for i, token in enumerate(tokens):
         if token.type == TokenType.QWORD:

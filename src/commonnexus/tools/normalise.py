@@ -15,7 +15,6 @@ from commonnexus.blocks.characters import Data
 from commonnexus.blocks import Taxa, Distances, Characters
 
 
-
 def normalise(nexus, data_to_characters=False):
     taxlabels = None
     characters = nexus.DATA or nexus.CHARACTERS

@@ -1,0 +1,18 @@
+#NEXUS
+[written Fri Jan 21 17:52:33 GMT 2022 by Mesquite  version 3.70 (build 940) at Agnese-laptop/10.10.7.250]
+BEGIN TREES;
+	Title 'Trees from "tree cetacea.tre"';
+	ID 017e7dc4be973;
+	LINK Taxa = Taxa;
+	TRANSLATE
+[0] 		1 Delphinapterus,
+[1] 		2 Globicephala,
+[2] 		3 Lagenorhynchus,
+[3] 		4 Phocoena,
+[4] 		5 Stenella;
+	TREE 'branch lenghts tree_odontonly' = ((1:15.3,4:15.3):4.5,(3:12.7,(2:8.2,5:8.2):4.5):7.1)[%selected = on ] [% ] [%  setBetweenBits = selected ];
+
+END;
+
+
+

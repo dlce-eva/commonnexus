@@ -9,4 +9,4 @@ def test_dendropy_suite(dendropyexample):
     assert str(n).strip() == dendropyexample.strip()
     for name, blocks in n.blocks.items():
         for block in blocks:
-            _ = block.commands
+            _ = block.commands  # We have to access `commands` to actually parse command payloads.

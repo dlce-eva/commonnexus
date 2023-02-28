@@ -16,7 +16,7 @@ import collections
 
 from commonnexus._compat import cached_property
 from commonnexus.tokenizer import (
-    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType
+    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType, Word,
 )
 from commonnexus.command import Command
 
@@ -61,6 +61,18 @@ class Title(Payload):
         assert isinstance(self.title, str)
 
 
+class Id(Payload):
+    """
+    Support for Mesquite's mechanism to link blocks.
+
+    https://phylo.bio.ku.edu/slides/lab9-MesquiteAncStatesBisse/09-Mesquite.html#Create_a_tree_file
+    """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        self.id = next(iter_words_and_punctuation(self._tokens, nexus=nexus))
+        assert isinstance(self.id, str)
+
+
 class Link(Payload):
     """
     Support for Mesquite's mechanism to link blocks.
@@ -90,8 +102,13 @@ class Block(tuple):
     @cached_property
     def payload_map(self):
         res = {cls.__name__.upper(): cls for cls in self.__commands__}
-        res.update(LINK=Link, TITLE=Title)
+        res.update(LINK=Link, TITLE=Title, ID=Id)
         return res
+
+    @property
+    def id(self):
+        if self.ID:
+            return self.ID.id
 
     @property
     def title(self):
@@ -137,14 +154,16 @@ class Block(tuple):
             log.info('{} block with {} commands'.format(self.name, len(self) - 2))
         return True
 
-    #
-    # FIXME: Allow adding comments before the block
-    #
     @classmethod
     def from_commands(cls,
-                      commands: typing.Iterable[typing.Tuple[str, str]],
+                      commands: typing.Iterable[
+                          typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
                       nexus=None,
-                      name=None) -> 'Block':
+                      name=None,
+                      comment=None,
+                      TITLE=None,
+                      LINK=None,
+                      ID=None) -> 'Block':
         """
         Generic factory method for blocks.
 
@@ -175,9 +194,31 @@ class Block(tuple):
             >>> str(nex.MYBLOCK.MYCOMMAND)
             'with data'
         """
-        cmds = [Command.from_name_and_payload('BEGIN', name or cls.__name__.upper())]
-        for cname, payload in commands:
-            cmds.append(Command.from_name_and_payload(cname, payload))
+        cmds = [
+            Command.from_name_and_payload('BEGIN', name or cls.__name__.upper(), comment=comment)]
+        if TITLE:
+            cmds.append(Command.from_name_and_payload('TITLE', Word(TITLE).as_nexus_string()))
+        if ID:
+            cmds.append(Command.from_name_and_payload('ID', Word(ID).as_nexus_string()))
+        if LINK:
+            if isinstance(LINK, str):
+                block, _, title = LINK.partition('=')
+                LINK = (block.strip(), title.strip())
+            else:
+                assert isinstance(LINK, tuple) and len(LINK) == 2
+            cmds.append(Command.from_name_and_payload('LINK', '{} = {}'.format(
+                Word(LINK[0]).as_nexus_string(), Word(LINK[1]).as_nexus_string())))
+        for cmdspec in commands:
+            payload, comment = None, None
+            if isinstance(cmdspec, str):
+                cname = cmdspec
+            elif len(cmdspec) == 2:
+                cname, payload = cmdspec
+            elif len(cmdspec) == 3:
+                cname, payload, comment = cmdspec
+            else:
+                raise ValueError(cmdspec)  # pragma: no cover
+            cmds.append(Command.from_name_and_payload(cname, payload, comment=comment))
         cmds.append(Command.from_name_and_payload('END'))
         return cls(nexus, tuple(cmds))
 

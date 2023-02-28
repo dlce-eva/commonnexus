@@ -1,4 +1,5 @@
 import typing
+import warnings
 import collections
 
 import newick
@@ -309,17 +310,26 @@ class Trees(Block):
                 str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
         elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
             mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
+        taxa = set(mapping.values())
 
         def rename(n):
-            if n.name in mapping:
-                n.name = mapping[n.name]
+            if n.name:
+                if n.name in mapping:
+                    n.name = mapping[n.name]
+                elif n.name not in taxa:
+                    warnings.warn('un-translatable tree node: {}'.format(n.name))
 
         node = tree.newick if isinstance(tree, Tree) else tree
         node.visit(rename)
         return node
 
     @classmethod
-    def from_data(cls, *tree_specs, **translate_labels) -> 'Trees':
+    def from_data(cls,
+                  *tree_specs,
+                  **translate_labels) -> 'Trees':
+        TITLE = translate_labels.pop('TITLE', None)
+        LINK = translate_labels.pop('LINK', None)
+        ID = translate_labels.pop('ID', None)
         nexus = translate_labels.pop('nexus', None)
         cmds = []
         detranslate = {v: k for k, v in translate_labels.items()}
@@ -342,4 +352,4 @@ class Trees(Block):
             if translate_labels:
                 nwk.visit(rename)
             cmds.append(('TREE', Tree.format(name, nwk, rooted)))
-        return cls.from_commands(cmds, nexus=nexus)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)
