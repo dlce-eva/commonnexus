@@ -315,7 +315,7 @@ class Trees(Block):
         def rename(n):
             if n.name:
                 if n.name in mapping:
-                    n.name = mapping[n.name]
+                    n.name = newick.Node(mapping[n.name], auto_quote=True).name
                 elif n.name not in taxa:
                     warnings.warn('un-translatable tree node: {}'.format(n.name))
 
@@ -336,7 +336,7 @@ class Trees(Block):
 
         def rename(n):
             if n.name in detranslate:
-                n.name = detranslate[n.name]
+                n.name = newick.Node(detranslate[n.name], auto_quote=True).name
 
         if translate_labels:
             cmds.append((

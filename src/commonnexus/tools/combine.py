@@ -3,11 +3,11 @@ Combine data from multiple NEXUS files and put it in a new one.
 
 The following blocks can be handled:
 
-- TAXA: Taxa are identified across NEXUS files based on label (not number).
-- CHARACTERS/DATA: Characters are aggregated across NEXUS files (with character labels prefixed,
-  for disambiguation).
-- TREES: Trees are (translated and) aggregated across NEXUS files.
-- DISTANCES?
+ - TAXA: Taxa are identified across NEXUS files based on label (not number).
+ - CHARACTERS/DATA: Characters are aggregated across NEXUS files (with character labels prefixed,
+   for disambiguation).
+ - TREES: Trees are (translated and) aggregated across NEXUS files.
+ - DISTANCES?
 """
 import collections
 
@@ -17,7 +17,11 @@ from commonnexus.blocks import Taxa, Trees, Characters
 SUPPORTED_BLOCKS = {'TAXA', 'CHARACTERS', 'DATA', 'TREES'}
 
 
-def combine(*nexus):
+def combine(*nexus: Nexus) -> Nexus:
+    """
+    :param nexus: `Nexus` objects to be combined.
+    :return: A new `Nexus` object with the combined data.
+    """
     # Make sure we are only dealing with blocks (and datatypes) that we know how to handle.
     for nex in nexus:
         assert set(nex.blocks).issubset(SUPPORTED_BLOCKS)
@@ -37,8 +41,8 @@ def combine(*nexus):
     matrices = []
     charlabels = collections.defaultdict(list)
     for i, nex in enumerate(nexus, start=1):
-        if nex.has_matrix():
-            matrices.append(nex.get_matrix())
+        if nex.has_character_matrix():
+            matrices.append(nex.get_character_matrix())
             for chars in matrices[-1].values():
                 for charlabel in chars:
                     charlabels[i] = charlabel

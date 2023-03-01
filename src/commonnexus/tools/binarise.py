@@ -3,21 +3,55 @@ Recode a CHARACTERS (or DATA) matrix such that it only contains binary character
 """
 import collections
 
+from commonnexus import Nexus
 from commonnexus.blocks.characters import GAP, Characters
 
 
-def binarise(nexus, uncertain_state='0'):
+def binarise(nexus: Nexus, uncertain_state='0') -> Nexus:
     """
-    1. Determine the symbol range per character in the data
-    2. Recode the matrix
-    3. Adapt DIMENSIONS.NCHAR, MATRIX, FORMAT.[SYMBOLS|MISSING|GAP], CHARSTATELABELS
-       Possibly copy TAXLABELS
-
-    :param nexus:
+    :param nexus: The `Nexus` object to be binarised.
     :param uncertain_state:
-    :return:
+    :return: The changed `Nexus` object.
+
+    .. note::
+
+        The `Nexus` object passed into the function is modified in-place and only returned for
+        added convenience.
+
+    .. code-block:: python
+
+        >>> from commonnexus.tools import binarise
+        >>> print(binarise(Nexus('''#NEXUS
+        ... BEGIN DATA;
+        ... DIMENSIONS nchar=1;
+        ... FORMAT SYMBOLS="abcde";
+        ... MATRIX t1 a t2 b t3 c t4 d t5 e;
+        ... END;''')))
+        #NEXUS
+        BEGIN DATA;
+        DIMENSIONS NCHAR=5;
+        FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+        CHARSTATELABELS
+            1 1_1,
+            2 1_2,
+            3 1_3,
+            4 1_4,
+            5 1_5;
+        MATRIX
+            t1 10000
+            t2 01000
+            t3 00100
+            t4 00010
+            t5 00001;
+        END;
     """
+    # 1. Determine the symbol range per character in the data
+    # 2. Recode the matrix
+    # 3. Adapt DIMENSIONS.NCHAR, MATRIX, FORMAT.[SYMBOLS|MISSING|GAP], CHARSTATELABELS
+    # Possibly copy TAXLABELS
     block = nexus.DATA or nexus.CHARACTERS
+    if block.FORMAT:
+        assert block.FORMAT.datatype == 'STANDARD'
     matrix = block.get_matrix()
     charstates = collections.defaultdict(set)
     for row in matrix.values():

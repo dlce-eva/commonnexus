@@ -364,18 +364,18 @@ class Nexus(list):
             Command.from_name_and_payload(name, payload))
 
     # Shortcuts:
-    def has_matrix(self) -> bool:
+    def has_character_matrix(self) -> bool:
         """
         Determine if a NEXUS file has a characters matrix (in either a DATA or CHARACTERS block).
         """
         return bool(self.DATA or self.CHARACTERS)
 
-    def get_matrix(self) -> typing.Optional[typing.OrderedDict]:
+    def get_character_matrix(self) -> typing.Optional[typing.OrderedDict]:
         """
         :return: The (first) characters matrix in a NEXUS file (from DATA or CHARACTERS).
         """
         assert not (self.DATA and self.CHARACTERS)
-        if self.has_matrix():
+        if self.has_character_matrix():
             return (self.DATA or self.CHARACTERS).get_matrix()
 
     def get_taxa(self) -> typing.Optional[typing.List[str]]:
@@ -402,8 +402,8 @@ class Nexus(list):
         """
         if self.TAXA and len(self.blocks['TAXA']) == 1:
             return list(self.TAXA.TAXLABELS.labels.values())
-        if self.has_matrix():
-            return list(self.get_matrix())
+        if self.has_character_matrix():
+            return list(self.get_character_matrix())
         if self.TREES:
             if self.TREES.TRANSLATE:
                 return list(self.TREES.TRANSLATE.mapping.values())

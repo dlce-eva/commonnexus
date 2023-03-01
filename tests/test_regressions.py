@@ -44,7 +44,7 @@ def test_BadCharsInTaxaName_trees(regression):
 def test_DetranslateWithDash_trees(regression):
     nex = Nexus.from_file(regression / 'detranslate-with-dash.trees', hyphenminus_is_text=True)
     translated = nex.TREES.translate(nex.TREES.TREE)
-    assert '(one,two,three,four-1,four_2)' in translated.newick
+    assert "(one,two,three,four-1,four_2)" in translated.newick
 
 
 def test_BranchLengthsInIntegers_trees(regression):

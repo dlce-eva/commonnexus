@@ -16,6 +16,9 @@ class Command(tuple):
     def name(self):
         return get_name(self)
 
+    def __eq__(self, other):  # To make command removal in Nexus.replace_block work.
+        return id(self) == id(other)
+
     @classmethod
     def from_name_and_payload(cls, name, payload='', comment=None):
         tokens = []

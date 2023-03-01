@@ -804,7 +804,7 @@ class Characters(Block):
             nchar, format, labeled_states=labeled_states)
         if format.transpose and (not format.interleave) and (format.labels != False) and (not ntax):
             raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
-        if format.datatype == 'CONTINUOUS':
+        if format.datatype == 'CONTINUOUS':  # pragma: no cover
             raise NotImplementedError("Can't read a matrix of datatype CONTINUOUS")
 
         # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
@@ -839,10 +839,7 @@ class Characters(Block):
                             vals = set()
                             while isinstance(w, str) or (w.text in format.symbols) \
                                     or (w.text == format.gap):
-                                if isinstance(w, str):
-                                    vals |= set(w)
-                                else:
-                                    vals.add(w.text)
+                                vals |= set(w if isinstance(w, str) else w.text)
                                 w = next(words)
                             assert w.text == '}', "Expected }"
                             entries.append(vals)
