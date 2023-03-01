@@ -25,6 +25,14 @@ def nexus():
 def pytest_generate_tests(metafunc):
     dendropy_examples = pathlib.Path(__file__).parent / 'fixtures' / 'dendropy' / 'tests' / 'data'
 
+    xfail = [
+        'standard-test-chars-protein.matchchar.nexus',  # Is X an equate symbol for DATATYPE=PROTEIN?
+        'standard-test-chars-protein.interleaved.nexus',  # Is X an equate symbol for DATATYPE=PROTEIN?
+        'standard-test-chars-protein.simple.nexus',  # same
+        'standard-test-chars-protein.basic.nexus',  # same
+        'caenophidia_mos.chars.nexus',  # same
+    ]
+
     def iter_paths():
         for dirpath, dirnames, filenames in os.walk(str(dendropy_examples)):
             for fname in filenames:
@@ -32,7 +40,7 @@ def pytest_generate_tests(metafunc):
                 try:
                     text = p.read_text(encoding='utf8')
                     if text[:100].lower().strip().startswith('#nexus'):
-                        yield text
+                        yield pytest.param(text, marks=pytest.mark.xfail) if p.name in xfail else text
                 except:
                     pass
 

@@ -1,8 +1,12 @@
 """
-We can handle
-- TAXA
-- CHARACTERS/DATA
-- TREES
+Combine data from multiple NEXUS files and put it in a new one.
+
+The following blocks can be handled:
+
+- TAXA: Taxa are identified across NEXUS files based on label (not number).
+- CHARACTERS/DATA: Characters are aggregated across NEXUS files (with character labels prefixed,
+  for disambiguation).
+- TREES: Trees are (translated and) aggregated across NEXUS files.
 - DISTANCES?
 """
 import collections

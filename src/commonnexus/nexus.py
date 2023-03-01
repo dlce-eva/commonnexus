@@ -31,6 +31,12 @@ class Config:
     ignore_unsupported: bool = True
     #: Specifies the text encoding of a NEXUS file.
     encoding: str = 'utf8'
+    #: The NEXUS spec does not explicitly state a default value for the MATCHCHAR directive in the
+    #: FORMAT command of a CHARACTERS block. `commonnexus` - in agreement with many NEXUS files
+    #: encountered "in the wild" - assumes a default of ".". To force no default value for
+    #: MATCHCHAR, e.g. because matrix data uses "." as regular state symbol, set
+    #: `no_default_matchchar` to `True`.
+    no_default_matchchar: bool = False
 
 
 class Nexus(list):

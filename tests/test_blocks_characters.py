@@ -23,7 +23,7 @@ MATRIX xBC ABC A(A B)C;""")
     assert nex.CHARACTERS.DIMENSIONS.nchar == 3
     assert nex.CHARACTERS.FORMAT.gap == '-'
     assert nex.CHARACTERS.FORMAT.symbols == list('ABC')
-    assert nex.CHARACTERS.FORMAT.equate == dict(x=('A', 'B'), y={'B', 'C'}, z='C')
+    assert nex.CHARACTERS.FORMAT.equate == dict(X=('A', 'B'), Y={'B', 'C'}, Z='C')
     assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].name == 'CHAR_C'
     assert nex.CHARACTERS.CHARSTATELABELS.characters[-1].states == ['_', 'bstate', 'cstate']
     matrix = nex.CHARACTERS.get_matrix(labeled_states=True)
@@ -75,6 +75,11 @@ MATRIX
             'DIMENSIONS NCHAR=3; FORMAT RESPECTCASE SYMBOLS="ABC" MISSING=c GAP=a MATCHCHAR=b; MATRIX t1 cCa t2 AbB;',
             lambda m: [list(r.values()) for r in m.values()] == [[None, 'C', GAP], ['A', 'C', 'B']],
         ),
+        (  # No RESPECTCASE directive, characters are returned as specified in SYMBOLS.
+            None,
+            'DIMENSIONS NCHAR=3; FORMAT SYMBOLS="ab"; MATRIX t1 aAb t2 BbB;',
+            lambda m: [list(r.values()) for r in m.values()] == [['a', 'a', 'b'], ['b', 'b', 'b']],
+        ),
         (
             None,
             'DIMENSIONS NCHAR=3; FORMAT DATATYPE=DNA; MATRIX t1 RTA;',
@@ -105,6 +110,17 @@ BEGIN CHARACTERS;
 END;""".format('BEGIN TAXA;\n{}\nEND;'.format(taxa) if taxa else '', characters))
     matrix = nex.CHARACTERS.get_matrix()
     assert expect(matrix)
+
+
+def test_NoDefaultMatchChar():
+    nex = Nexus("""#nexus
+BEGIN CHARACTERS;
+DIMENSIONS NCHAR=3;
+FORMAT SYMBOLS=".+";
+MATRIX t1 ..+ t2 ++. t3 +++;
+END;""", no_default_matchchar=True)
+    matrix = nex.get_matrix()
+    assert matrix['t1'] == {'1': '.', '2': '.', '3': '+'}
 
 
 def test_Characters_Statelabels():
@@ -166,6 +182,19 @@ TAXLABELS t1 t2;
 MATRIX 
     t1 01
     t2 10;
+END;"""
+    nex = Nexus('#nexus')
+    nex.append_block(Characters.from_data(
+        {'t1': {'1': 'a', '2': 'B'}, 't2': {'1': 'A', '2': 'b'}},
+        taxlabels=True))
+    assert str(nex) == """#NEXUS
+BEGIN CHARACTERS;
+DIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
+FORMAT DATATYPE=STANDARD RESPECTCASE MISSING=? GAP=- SYMBOLS="ABab";
+TAXLABELS t1 t2;
+MATRIX 
+    t1 aB
+    t2 Ab;
 END;"""
 
 

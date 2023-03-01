@@ -316,12 +316,14 @@ def iter_lines(tokens):
     line = []
     for t in tokens:
         if t.is_newline:
-            yield line
+            if not all(tt.type in (TokenType.WHITESPACE, TokenType.COMMENT) for tt in line):
+                yield line
             line = []
         else:
             line.append(t)
     if line:
-        yield line
+        if not all(tt.type in (TokenType.WHITESPACE, TokenType.COMMENT) for tt in line):
+            yield line
 
 
 def iter_delimited(start, words_and_punctuation, delimiter='"', allow_single_word=False):

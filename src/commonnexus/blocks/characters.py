@@ -159,6 +159,12 @@ class Format(Payload):
             END;
 
        Whitespace is illegal as a matching character symbol, as are the :data:`INVALID_SYMBOLS`
+
+       .. warning::
+
+            `commonnexus` uses `"."` as default MATCHCHAR. So if `"."` is used as a regular state
+            symbol, the NEXUS must be read using the `no_default_matchchar` config option.
+
     8. [NO]LABELS. This subcommand declares whether taxon or character labels are to appear on the
        left side of the matrix. By default, they should appear. If NOLABELS is used, then no labels
        appear, but then all currently defined taxa must be included in the MATRIX in the order in
@@ -295,7 +301,7 @@ class Format(Payload):
         self.gap = None
         self.symbols = ['0', '1']  # The default for DATATYPE=STANDARD
         self.equate = {}
-        self.matchchar = None
+        self.matchchar = None if nexus and nexus.cfg.no_default_matchchar else '.'
         self.labels = None
         self.transpose = False
         self.interleave = False
@@ -327,6 +333,8 @@ class Format(Payload):
 
                 if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
                     setattr(self, subcommand.lower(), after_equals())
+                    if subcommand == 'DATATYPE' and self.datatype.upper() != 'STANDARD':
+                        self.symbols = []
                 elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
                     setattr(self, subcommand.lower(), True)
                 elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
@@ -423,6 +431,9 @@ class Format(Payload):
         elif self.datatype == 'PROTEIN':
             self.symbols.extend(list('ACDEFGHIKLMNPQRSTVWY*'))
             self.equate.update(B=set('DN'), Z=set('EQ'))
+
+        if not self.respectcase:
+            self.equate = {k.upper(): v for k, v in self.equate.items()}
 
         invalid_equate = \
             list(INVALID_SYMBOLS) + self.symbols + \
@@ -780,7 +791,9 @@ class Characters(Block):
         either atomic values (of type `str`) or `tuple`s (indicating polymorphism) or `set`s \
         (indicating uncertainty) of atomic values. Atomic values may be `None` (indicating missing \
         data), the special string `GAP` (indicating gaps) or state symbols or labels (if available \
-        and explicitly requested via `labeled_states=True`).
+        and explicitly requested via `labeled_states=True`). State symbols are returned using the \
+        case given in FORMAT SYMBOLS, i.e. if a RESPECTCASE directive is missing and \
+        FORMAT SYMBOLS="ABC", a value "a" in the matrix will be returned as "A".
         """
         format = Format(None) if 'FORMAT' not in self.commands else self.FORMAT
 
@@ -791,6 +804,8 @@ class Characters(Block):
             nchar, format, labeled_states=labeled_states)
         if format.transpose and (not format.interleave) and (format.labels != False) and (not ntax):
             raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
+        if format.datatype == 'CONTINUOUS':
+            raise NotImplementedError("Can't read a matrix of datatype CONTINUOUS")
 
         # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
         # ordered dictionary mapping row labels (or numbers) to lists of entries.
@@ -820,8 +835,19 @@ class Characters(Block):
                             entries.append(tuple(symbols))
                             assert word.text == ')'
                         elif t.text == '{':
-                            entries.append(set(next(words)))
-                            assert next(words).text == '}'
+                            w = next(words)
+                            vals = set()
+                            while isinstance(w, str) or (w.text in format.symbols) \
+                                    or (w.text == format.gap):
+                                if isinstance(w, str):
+                                    vals |= set(w)
+                                else:
+                                    vals.add(w.text)
+                                w = next(words)
+                            assert w.text == '}', "Expected }"
+                            entries.append(vals)
+                        elif t.text in format.symbols:
+                            entries.append(t.text)
                         else:  # pragma: no cover
                             raise ValueError('Unexpected punctuation in matrix')
                     else:
@@ -839,7 +865,7 @@ class Characters(Block):
                 label, entries = None, []
 
         cols = ncols or len(list(res.values())[0])
-        assert all(len(states) == cols for states in res.values())
+        assert all(len(states) == cols for states in res.values()), "Incomplete matrix read!"
         if not taxlabels:
             assert not format.transpose
             taxlabels = {i + 1: key for i, key in enumerate(res)}
@@ -868,12 +894,14 @@ class Characters(Block):
                         (not format.respectcase and (s.upper() == format.matchchar.upper())):
                     assert r
                     return r[i]
+            if s not in format.symbols:
+                s = s.lower() if s.isupper() else s.upper()
             assert s in format.symbols, '{} {}'.format(s, format.symbols)
             return s
 
         def resolve_symbols(s, i, r):
             def resolve(c, i, r):
-                c = format.equate.get(c, c)  # This may result in ambiguous or multiple states!
+                c = format.equate.get(c.upper(), c)  # May result in ambiguous or multiple states!
                 return apply_to_state(replace_symbol, c, i, r)
             return apply_to_state(resolve, s, i, r)
 
@@ -1052,14 +1080,15 @@ class Characters(Block):
         symbols = ''.join(sorted([s for s in symbols if s not in [None, GAP]]))
         if missing in symbols or (gap in symbols):
             raise ValueError('MISSING or GAP markers must be distinct from SYMBOLS!')
+        respectcase = any(c.isupper() for c in symbols) and any(c.islower() for c in symbols)
 
         dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
         if taxlabels:
             dimensions = 'NEWTAXA NTAX={} {}'.format(len(tlabels), dimensions)
         cmds = [
             ('DIMENSIONS', dimensions),
-            ('FORMAT', 'DATATYPE=STANDARD MISSING={} GAP={} SYMBOLS="{}"'.format(
-                missing, gap, symbols)),
+            ('FORMAT', 'DATATYPE=STANDARD {}MISSING={} GAP={} SYMBOLS="{}"'.format(
+                'RESPECTCASE ' if respectcase else '', missing, gap, symbols)),
         ]
         if any(k != v for k, v in charlabels.items()):
             cmds.append((
