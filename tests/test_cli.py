@@ -5,6 +5,7 @@ import logging
 import pytest
 
 from commonnexus.__main__ import main as cli
+from commonnexus import Nexus
 
 
 @pytest.fixture
@@ -19,6 +20,13 @@ def test_help(main, capsys):
     assert main('') == 1
     out, _ = capsys.readouterr()
     assert 'commonnexus' in out
+
+    with pytest.raises(SystemExit):
+        main('help normalise')
+    out, _ = capsys.readouterr()
+    assert 'normalise' in out
+
+    main('help')
 
 
 def test_normalise(main, capsys, mocker):
@@ -45,3 +53,11 @@ def test_combine(main, capsys, fixture_dir):
     main('combine "#nexus begin block; end;" --drop-unsupported')
     out, _ = capsys.readouterr()
     assert out.strip() == '#NEXUS'
+
+
+def test_binarise(main, capsys):
+    nex = "#nexus begin data; dimensions nchar=1; matrix t1 a t2 b t3 c; end;"
+    main('binarise "{}"'.format(nex))
+    out, _ = capsys.readouterr()
+    assert Nexus(out).characters.DIMENSIONS.nchar == 3
+

@@ -1,9 +1,11 @@
 #nexus
 begin characters;
-dimensions nchar=3;
+dimensions nchar=10;
 matrix
-    t1 100
-    t2 010
-    t3 001
+    t1 1001010000
+    t2 0101000100
+    t3 0011101010
+    t4 0001100001
+    t5 0001100001
 ;
 end;

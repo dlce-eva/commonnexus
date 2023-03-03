@@ -10,6 +10,5 @@ def run(args):
     from commonnexus.__main__ import main
 
     if args.command:
-        main([args.command, '-h'])
-    else:
-        print('Run "commonnexus COMMAND -h" to get help on subcommand COMMAND')
+        return main([args.command, '-h'])
+    print('Run "commonnexus COMMAND -h" to get help on subcommand COMMAND')

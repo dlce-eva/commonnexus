@@ -16,7 +16,7 @@ def register(parser):
 
 def run(args):
     if args.nexus.characters:
-        if args.nexus.characters.FORMAT:
+        if args.nexus.characters.FORMAT:  # pragma: no cover
             assert args.nexus.characters.FORMAT.datatype is None or \
                 args.nexus.characters.FORMAT.datatype == 'STANDARD'
 

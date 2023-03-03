@@ -70,3 +70,18 @@ function :func:`commonnexus.tools.normalise.normalise`.
 **Examples**:
 
 .. command-output:: commonnexus binarise "#NEXUS BEGIN DATA; DIMENSIONS nchar=1; MATRIX t1 a t2 b t3 c t4 d t5 e; END;"
+
+
+`commonnexus describe`
+----------------------
+
+.. command-output:: commonnexus describe -h
+
+
+**Describing character set sizes:**
+
+The output of the `describe` command is also suitable for piping to other commands. E.g.
+`termgraph <https://pypi.org/project/termgraph/>`_ can be used to display character set sizes:
+
+.. command-output:: commonnexus describe characters.nex --binary-character-size | termgraph
+    :shell:
