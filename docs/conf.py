@@ -20,6 +20,8 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx_autodoc_typehints',
+    'sphinx-prompt',
+    'sphinxcontrib.programoutput',
 ]
 
 templates_path = ['_templates']

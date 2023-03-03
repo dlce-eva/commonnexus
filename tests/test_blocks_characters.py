@@ -119,7 +119,7 @@ DIMENSIONS NCHAR=3;
 FORMAT SYMBOLS=".+";
 MATRIX t1 ..+ t2 ++. t3 +++;
 END;""", no_default_matchchar=True)
-    matrix = nex.get_character_matrix()
+    matrix = nex.characters.get_matrix()
     assert matrix['t1'] == {'1': '.', '2': '.', '3': '+'}
 
 

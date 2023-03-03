@@ -1,5 +1,7 @@
 """
-Normalise a NEXUS file by
+Normalise a NEXUS file.
+
+Normalisation includes
 
  - converting CHARACTERS/DATA matrices to non-transposed, non-interleaved representation with
    taxon labels (and resolved EQUATEs), extracting taxon labels into a TAXA block;
@@ -77,8 +79,8 @@ def normalise(nexus: Nexus, data_to_characters: bool = False) -> Nexus:
         END;
     """
     taxlabels = None
-    if nexus.has_character_matrix():
-        matrix = nexus.get_character_matrix()
+    if nexus.characters:
+        matrix = nexus.characters.get_matrix()
         taxlabels = list(matrix.keys())
         characters = nexus.DATA or nexus.CHARACTERS
         cls = Data if characters.name == 'DATA' and not data_to_characters else Characters
@@ -92,10 +94,11 @@ def normalise(nexus: Nexus, data_to_characters: bool = False) -> Nexus:
             taxlabels = list(matrix.keys())
         nexus.replace_block(nexus.DISTANCES, Distances.from_data(matrix))
 
-    if nexus.TREES and nexus.TREES.TRANSLATE:
+    if nexus.TREES:
         trees = []
         for tree in nexus.TREES.commands['TREE']:
-            trees.append((tree.name, nexus.TREES.translate(tree), tree.rooted))
+            nwk = nexus.TREES.translate(tree) if nexus.TREES.TRANSLATE else tree.newick
+            trees.append((tree.name, nwk, tree.rooted))
         nexus.replace_block(nexus.TREES, Trees.from_data(*trees))
 
     if taxlabels:

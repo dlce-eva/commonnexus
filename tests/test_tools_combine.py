@@ -38,13 +38,13 @@ def nex3(nexus):
 
 
 def test_combine_simple(nex1, nex2):
-    matrix = combine(nex1, nex2).get_character_matrix()
+    matrix = combine(nex1, nex2).characters.get_matrix()
     assert matrix['Harry'] == {'1.1': '1', '2.1': '3'}
     assert matrix['Simon'] == {'1.1': '2', '2.1': '4'}
 
 
 def test_combine_missing(nex1, nex3):
-    matrix = combine(nex1, nex3).get_character_matrix()
+    matrix = combine(nex1, nex3).characters.get_matrix()
     assert matrix['Harry'] == {'1.1': '1', '2.1': None}
     assert matrix['Simon'] == {'1.1': '2', '2.1': '5'}
     assert matrix['Betty'] == {'1.1': None, '2.1': '3'}
@@ -53,8 +53,8 @@ def test_combine_missing(nex1, nex3):
 
 def test_combine_iterated(nex1):
     res = combine(combine(nex1))
-    assert len(res.get_taxa()) == 2  # Taxa are merged.
-    assert '1.1.1' in res.get_character_matrix()['Simon']  # Charlabels are prefixed.
+    assert len(res.taxa) == 2  # Taxa are merged.
+    assert '1.1.1' in res.characters.get_matrix()['Simon']  # Charlabels are prefixed.
 
 
 def test_combine_with_character_labels(nexus):
@@ -89,8 +89,8 @@ def test_combine_with_character_labels(nexus):
         ;
         """)
     newnex = combine(n1, n2)
-    assert len(newnex.get_taxa()) == 3, "Taxa not merged using taxlabels"
-    row = list(newnex.get_character_matrix().values())[0]
+    assert len(newnex.taxa) == 3, "Taxa not merged using taxlabels"
+    row = list(newnex.characters.get_matrix().values())[0]
     assert len(row) == 6, "Characters not aggregated"
     assert '1.char1' in row and ('2.char1' in row), "charlabels not prefixed"
 
@@ -103,6 +103,6 @@ def test_combine_trees(nexus):
 
     newnex = combine(nex1, nex2)
     assert len(newnex.TREES.commands['TREE']) == 3, "not all trees aggregated"
-    assert newnex.get_taxa() == ['a', 'b', 'c'], "trees not properly translated"
+    assert newnex.taxa == ['a', 'b', 'c'], "trees not properly translated"
     assert newnex.TREES.commands['TREE'][0].name == '1.1', "tree name not prefixed"
     assert '[comment]' in newnex.TREES.commands['TREE'][1].newick.newick, "comment in newick lost"

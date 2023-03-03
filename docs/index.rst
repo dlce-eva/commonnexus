@@ -36,6 +36,7 @@ each time. Thus, if you use this package (or just its documentation), make sure 
    nexus
    blocks
    tools
+   cli
 
 
 Indices and tables

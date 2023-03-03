@@ -114,7 +114,7 @@ def test_Nexus_replace_block():
     BEGIN TAXA;
         TAXLABELS Scarabaeus Drosophila Aranaeus;
     END;
-    BEGIN Trees;
+    BEGIN T[c]rees;
         TRANSLATE beetle Scarabaeus, fly Drosophila, spider Aranaeus;
         TREE tree1 = ((beetle,fly),spider);
         TREE tree2 = ((1,2),3);
@@ -129,11 +129,11 @@ def test_Nexus_replace_block():
     BEGIN TAXA;
         TAXLABELS Scarabaeus Drosophila Aranaeus;
     END;
-    BEGIN Trees;
+BEGIN TREES;
 TREE tree1 = ((Scarabaeus,Drosophila),Aranaeus);
 TREE tree2 = ((Scarabaeus,Drosophila),Aranaeus);
 TREE tree3 = ((Scarabaeus,Drosophila),Aranaeus);
-    END;"""
+END;"""
 
 
 def test_Nexus_validate(caplog):

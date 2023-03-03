@@ -17,36 +17,39 @@ from commonnexus.blocks import Taxa, Trees, Characters
 SUPPORTED_BLOCKS = {'TAXA', 'CHARACTERS', 'DATA', 'TREES'}
 
 
-def combine(*nexus: Nexus) -> Nexus:
+def combine(*nexus: Nexus, **kw) -> Nexus:
     """
     :param nexus: `Nexus` objects to be combined.
     :return: A new `Nexus` object with the combined data.
     """
     # Make sure we are only dealing with blocks (and datatypes) that we know how to handle.
     for nex in nexus:
-        assert set(nex.blocks).issubset(SUPPORTED_BLOCKS)
+        if not kw.get('drop_unsupported', False):
+            assert set(nex.blocks).issubset(SUPPORTED_BLOCKS), \
+                "Only {} blocks are supported.".format(SUPPORTED_BLOCKS)
         for block in SUPPORTED_BLOCKS:
             assert len(nex.blocks.get(block, [])) <= 1
-        if (nex.DATA or nex.CHARACTERS) and (nex.DATA or nex.CHARACTERS).FORMAT:
-            assert (nex.DATA or nex.CHARACTERS).FORMAT.datatype == 'STANDARD'
 
     # Determine the superset of taxa.
     taxa = []
     for i, nex in enumerate(nexus, start=1):
-        for taxon in (nex.get_taxa() or []):
+        for taxon in (nex.taxa or []):
             if taxon not in taxa:
                 taxa.append(taxon)
 
     # Create a super-matrix, with all taxa and all characters.
-    matrices = []
+    matrices, datatypes = [], set()
     charlabels = collections.defaultdict(list)
     for i, nex in enumerate(nexus, start=1):
-        if nex.has_character_matrix():
-            matrices.append(nex.get_character_matrix())
+        if nex.characters:
+            datatypes.add(nex.characters.FORMAT.datatype if nex.characters.FORMAT else 'STANDARD')
+            matrices.append(nex.characters.get_matrix())
             for chars in matrices[-1].values():
                 for charlabel in chars:
                     charlabels[i] = charlabel
                 break
+    if len(datatypes) > 1:  # pragma: no cover
+        raise ValueError('Only CHARACTER or DATA blocks of the same datatype can be combined!')
     matrix = collections.OrderedDict()
     if matrices:
         for taxon in taxa:
@@ -69,7 +72,8 @@ def combine(*nexus: Nexus) -> Nexus:
                 trees.append(('{}.{}'.format(i, tree.name), nwk, tree.rooted))
 
     nex = Nexus()
-    nex.append_block(Taxa.from_data(taxa))
+    if taxa:
+        nex.append_block(Taxa.from_data(taxa))
     if matrix:
         nex.append_block(Characters.from_data(matrix))
     if trees:

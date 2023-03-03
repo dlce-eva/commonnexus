@@ -1,7 +1,7 @@
 import pytest
 
 from commonnexus import Nexus
-from commonnexus.tools import normalise
+from commonnexus.tools.normalise import normalise
 
 
 def test_normalise(nexus):
@@ -35,5 +35,10 @@ BEGIN TREES;
 TREE 1 = ('t 1',t2,t3);
 END;"""
     res = normalise(Nexus(res))
-    assert res.get_character_matrix()
+    assert res.characters.get_matrix()
     assert res.DISTANCES.get_matrix()
+
+    res.remove_block(res.TAXA)
+    res.remove_block(res.CHARACTERS)
+    res = normalise(res)
+    assert res.TAXA

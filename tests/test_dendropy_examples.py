@@ -10,12 +10,12 @@ def test_dendropy_suite(dendropyexample):
     for name, blocks in n.blocks.items():
         for block in blocks:
             _ = block.commands  # We have to access `commands` to actually parse command payloads.
-    if n.has_character_matrix():
-        d = n.DATA or n.CHARACTERS
-        if d.FORMAT and d.FORMAT.datatype == 'CONTINUOUS':
+    if n.characters:
+        if n.characters.FORMAT and n.characters.FORMAT.datatype == 'CONTINUOUS':
             pass
         else:
-            _ = n.get_character_matrix()
+            _ = n.characters.get_matrix()
     if n.TREES:
         for tree in n.TREES.commands['TREE']:
             _ = tree.newick
+    assert not n.DISTANCES

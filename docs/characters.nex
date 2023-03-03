@@ -1,0 +1,9 @@
+#nexus
+begin characters;
+dimensions nchar=3;
+matrix
+    t1 100
+    t2 010
+    t3 001
+;
+end;

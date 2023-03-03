@@ -37,6 +37,10 @@ class Config:
     #: MATCHCHAR, e.g. because matrix data uses "." as regular state symbol, set
     #: `no_default_matchchar` to `True`.
     no_default_matchchar: bool = False
+    #: Sometimes the NEXUS spec is not followed entirely by files found in the wild. If somewhat
+    #: lax interpretation does not lead to ambiguities, that's what commonnexus does. To force
+    #: stricter adherence to the spec, set `strict` to `True`.
+    strict: bool = False
 
 
 class Nexus(list):
@@ -341,22 +345,25 @@ class Nexus(list):
     def replace_block(self,
                       old: Block,
                       new: typing.Union[Block, typing.List[typing.Tuple[str, str]]]):
+        bname = old.name
         for i, cmd in enumerate(self):
             if cmd is old[0]:
                 break
         else:
             raise ValueError('Block not found')  # pragma: no cover
 
-        for cmd in old[1:-1]:
+        for cmd in old:
             self.remove(cmd)
 
         if isinstance(new, Block):
             new.nexus = self
-            for cmd in reversed(new[1:-1]):
-                self.insert(i + 1, cmd)
+            for cmd in reversed(new):
+                self.insert(i, cmd)
         else:
+            self.insert(i, Command.from_name_and_payload('END'))
             for n, payload in reversed(new):
-                self.insert(i + 1, Command.from_name_and_payload(n, payload))
+                self.insert(i, Command.from_name_and_payload(n, payload))
+            self.insert(i, Command.from_name_and_payload('BEGIN', bname))
 
     def append_command(self, block, name, payload=None):
         self.insert(
@@ -364,22 +371,25 @@ class Nexus(list):
             Command.from_name_and_payload(name, payload))
 
     # Shortcuts:
-    def has_character_matrix(self) -> bool:
+    @property
+    def characters(self) -> typing.Union[Block, None]:
         """
-        Determine if a NEXUS file has a characters matrix (in either a DATA or CHARACTERS block).
-        """
-        return bool(self.DATA or self.CHARACTERS)
+        Shortcut to get around the DATA/CHARACTERS ambiguity.
 
-    def get_character_matrix(self) -> typing.Optional[typing.OrderedDict]:
-        """
-        :return: The (first) characters matrix in a NEXUS file (from DATA or CHARACTERS).
+        I.e. if one is interested in the characters matrix of a NEXUS file no matter whether this
+        is included in a DATA or CHARACTERS block, ``Nexus.characters.get_matrix()`` can be used
+        rather than ``(Nexus.DATA or NEXUS.CHARACTERS).get_matrix()``.
+
+        :return: The first DATA or CHARACTERS block.
         """
         assert not (self.DATA and self.CHARACTERS)
-        if self.has_character_matrix():
-            return (self.DATA or self.CHARACTERS).get_matrix()
+        return self.DATA or self.CHARACTERS
 
-    def get_taxa(self) -> typing.Optional[typing.List[str]]:
+    @property
+    def taxa(self) -> typing.Optional[typing.List[str]]:
         """
+        Shortcut to retrieve the list of taxa a NEXUS file provides data on.
+
         :return: The list of taxa labels used in a NEXUS file.
 
         .. note::
@@ -402,8 +412,8 @@ class Nexus(list):
         """
         if self.TAXA and len(self.blocks['TAXA']) == 1:
             return list(self.TAXA.TAXLABELS.labels.values())
-        if self.has_character_matrix():
-            return list(self.get_character_matrix())
+        if self.characters:
+            return list(self.characters.get_matrix())
         if self.TREES:
             if self.TREES.TRANSLATE:
                 return list(self.TREES.TRANSLATE.mapping.values())

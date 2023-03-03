@@ -308,6 +308,7 @@ class Format(Payload):
         self.items = []
         self.statesformat = None
         self.tokens = None
+        self.explicit_symbols = False
 
         if tokens is None:
             return
@@ -340,6 +341,7 @@ class Format(Payload):
                 elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
                     setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
                 elif subcommand == 'SYMBOLS':
+                    self.explicit_symbols = True
                     self.symbols = []
                     for w in iter_delimited(after_equals(), words):
                         if isinstance(w, str):
@@ -778,6 +780,13 @@ class Characters(Block):
     __commands__ = [
         Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
 
+    def is_binary(self) -> bool:
+        """
+        :return: Whether the matrix in the block is binary, i.e. codes items as presence/absence \
+        using symbols "01".
+        """
+        return not bool(self.FORMAT) or (self.FORMAT.symbols == ['0', '1'])
+
     def get_matrix(self, labeled_states: bool = False) \
             -> typing.OrderedDict[
                 str, typing.OrderedDict[
@@ -878,6 +887,9 @@ class Characters(Block):
                 return set(func(s, *args, **kw) for s in state)
             raise ValueError(state)  # pragma: no cover
 
+        lax_symbols = not format.explicit_symbols and format.datatype in {None, 'STANDARD'} \
+            and not (self.nexus and self.nexus.cfg.strict)
+
         def replace_symbol(s, i, r):
             if (format.respectcase and s == format.missing) or \
                     (not format.respectcase and (s.upper() == format.missing.upper())):
@@ -893,7 +905,9 @@ class Characters(Block):
                     return r[i]
             if s not in format.symbols:
                 s = s.lower() if s.isupper() else s.upper()
-            assert s in format.symbols, '{} {}'.format(s, format.symbols)
+
+            if not lax_symbols:
+                assert s in format.symbols, '{} {}'.format(s, format.symbols)
             return s
 
         def resolve_symbols(s, i, r):
@@ -1076,7 +1090,7 @@ class Characters(Block):
 
         symbols = ''.join(sorted([s for s in symbols if s not in [None, GAP]]))
         if missing in symbols or (gap in symbols):
-            raise ValueError('MISSING or GAP markers must be distinct from SYMBOLS!')
+            raise ValueError('MISSING or GAP markers must be distinct from "{}"'.format(symbols))
         respectcase = any(c.isupper() for c in symbols) and any(c.islower() for c in symbols)
 
         dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))

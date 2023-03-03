@@ -14,3 +14,32 @@ token. Thus, we sacrifice speed for correctness and the ability to support weird
 
 > Comments do not break tokens. Thus, `AssuMP[comment]TiONS` is processed as `ASSUMPTIONS`.
 
+
+
+## Install
+
+Install `commonnexus` from [PyPI](https://pypi.org/project/commonnexus):
+```shell
+pip install commonnexus
+```
+
+
+## Command line usage
+
+Installing the `commonnexus` package will also install a command line interface `commonnexus`, which provides several
+sub-commands to manipulate NEXUS files.
+
+Run `commonnexus -h` to get an overview of available sub-commands.
+
+
+## Python API
+
+For a detailed documentation of the Python API, refer to the
+[docs on ReadTheDocs](https://commonnexus.readthedocs.io/en/latest/index.html).
+
+
+## See also
+
+- https://doi.org/10.1093/sysbio/46.4.590
+- https://github.com/dlce-eva/python-nexus
+- http://wiki.christophchamp.com/index.php?title=NEXUS_file_format
