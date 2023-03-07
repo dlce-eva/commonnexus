@@ -187,7 +187,8 @@ def get_name(tokens):
 
 class Word(str):
     def __eq__(self, other):
-        return self.replace(' ', '_') == other.replace(' ', '_')
+        return self.replace(' ', '_') == other.replace(' ', '_') \
+            if isinstance(other, str) else False
 
     def as_nexus_string(self):
         must_quote = False

@@ -102,7 +102,7 @@ def test_combine_trees(nexus):
             tree 3 = (b,c,a);""")
 
     newnex = combine(nex1, nex2)
-    assert len(newnex.TREES.commands['TREE']) == 3, "not all trees aggregated"
+    assert len(newnex.TREES.trees) == 3, "not all trees aggregated"
     assert newnex.taxa == ['a', 'b', 'c'], "trees not properly translated"
-    assert newnex.TREES.commands['TREE'][0].name == '1.1', "tree name not prefixed"
-    assert '[comment]' in newnex.TREES.commands['TREE'][1].newick.newick, "comment in newick lost"
+    assert newnex.TREES.trees[0].name == '1.1', "tree name not prefixed"
+    assert '[comment]' in newnex.TREES.trees[1].newick.newick, "comment in newick lost"

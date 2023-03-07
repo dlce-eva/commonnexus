@@ -20,7 +20,10 @@ NEXUS data:
     TREES
 
 
-.. automodule:: commonnexus.nexus
+.. autoclass:: commonnexus.nexus.Config
+    :members:
+
+.. autoclass:: commonnexus.nexus.Nexus
     :members:
     :special-members:
 

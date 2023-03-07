@@ -1,6 +1,7 @@
 import io
 import shlex
 import logging
+import warnings
 
 import pytest
 
@@ -13,6 +14,14 @@ def main():
     def f(args):
         return cli(
             shlex.split(args) if isinstance(args, str) else args, log=logging.getLogger(__name__))
+    return f
+
+
+@pytest.fixture
+def mainnexus(main, capsys):
+    def f(args):
+        main(args)
+        return Nexus(capsys.readouterr()[0])
     return f
 
 
@@ -32,12 +41,12 @@ def test_help(main, capsys):
 def test_normalise(main, capsys, mocker):
     main('normalise "#nexus begin block; end;"')
     out, _ = capsys.readouterr()
-    assert out.strip() == "#NEXUS begin block; end;"
+    assert out.strip() == "#NEXUS\nBEGIN block;\nEND;"
     # Make sure reading from stdin works:
     mocker.patch('commonnexus.cli_util.sys.stdin', io.StringIO('#nexus begin block; end;'))
     main('normalise -')
     out, _ = capsys.readouterr()
-    assert out.strip() == "#NEXUS begin block; end;"
+    assert out.strip() == "#NEXUS\nBEGIN block;\nEND;"
 
 
 def test_combine(main, capsys, fixture_dir):
@@ -55,9 +64,120 @@ def test_combine(main, capsys, fixture_dir):
     assert out.strip() == '#NEXUS'
 
 
-def test_binarise(main, capsys):
-    nex = "#nexus begin data; dimensions nchar=1; matrix t1 a t2 b t3 c; end;"
-    main('binarise "{}"'.format(nex))
+def test_taxa(main, capsys, fixture_dir, tmp_path, caplog):
+    main('taxa {}'.format(fixture_dir / 'christophchamp_basic.nex'))
     out, _ = capsys.readouterr()
-    assert Nexus(out).characters.DIMENSIONS.nchar == 3
+    assert len([l for l in out.split('\n') if l.strip()]) == 4
+    main('taxa --drop A {}'.format(fixture_dir / 'christophchamp_basic.nex'))
+    out, _ = capsys.readouterr()
+    assert Nexus(out).taxa == ['B', 'C', 'D']
+    #
+    # FIXME: drop and rename with DISTANCES!
+    #
+    main('taxa --rename A,X {}'.format(fixture_dir / 'christophchamp_basic.nex'))
+    out, _ = capsys.readouterr()
+    assert Nexus(out).taxa == ['X', 'B', 'C', 'D']
+    nex = tmp_path.joinpath('test.nex')
+    nex.write_text(out, encoding='utf8')
+    main('taxa --check {}'.format(str(nex)))
+    assert not caplog.records
 
+
+def test_taxa_check(main, caplog, tmp_path):
+    nex = tmp_path / 'test.nex'
+    nex.write_text("""#nexus
+begin taxa; dimensions ntax=4; taxlabels A B C D; end;
+begin data;
+dimensions nchar=1;
+matrix A 1 B 0 C 0 X 0;
+end;""", encoding='utf8')
+    main('taxa --check {}'.format(nex))
+    assert len(caplog.records) == 2
+    caplog.clear()
+
+    nex = tmp_path / 'test.nex'
+    nex.write_text("""#nexus
+begin taxa; dimensions ntax=4; taxlabels A B C D; end;
+begin trees;
+translate 1 A, 2 B, 3 C, 4 X;
+tree 1 = ((Y,A,B)Z);
+end;""", encoding='utf8')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        main('taxa --check {}'.format(nex))
+    assert len(caplog.records) == 3
+
+
+@pytest.mark.parametrize(
+    'inchar,matrix,op,args,outchar',
+    [
+        (1, 't1 a t2 b t3 c', 'binarise', '', 3),
+        (2, 't1 10 t2 01 t3 00', 'multistatise', '', 1),
+        (2, 't1 10 t2 11 t3 10', 'drop', 'constant', 1),
+    ]
+)
+def test_characters(mainnexus, inchar, matrix, op, args, outchar):
+    nex = "#nexus begin data; dimensions nchar={}; matrix {}; end;".format(inchar, matrix)
+    res = mainnexus('characters --{} {} "{}"'.format(op, args or '', nex))
+    assert res.characters.DIMENSIONS.nchar == outchar
+
+
+@pytest.mark.parametrize(
+    'inchar,matrix,what,nlines',
+    [
+        (3, 't1 100 t2 110 t3 101', 'binary-setsize', 3),
+        (3, 't1 100 t2 010 t3 001', 'binary-unique', 3),
+        (2, 't1 10 t2 11 t3 10', 'binary-constant', 1),
+        (3, 't1 100 t2 110 t3 101', 'states-distribution', 5),
+    ]
+)
+def test_characters_describe(main, inchar, matrix, what, nlines, capsys):
+    nex = "#nexus begin data; dimensions nchar={}; matrix {}; end;".format(inchar, matrix)
+    main('characters --describe {} "{}"'.format(what, nex))
+    out, _ = capsys.readouterr()
+    lines = [l for l in out.split('\n') if l.strip()]
+    assert len(lines) == nlines
+
+
+def test_characters_convert(main, capsys, fixture_dir):
+    cli(['characters', str(fixture_dir / 'christophchamp_basic.nex')])
+    main('characters --convert fasta {}'.format(fixture_dir / 'christophchamp_basic.nex'))
+    out, _ = capsys.readouterr()
+    assert out == """> A
+MA-LL
+> B
+MA-LE
+> C
+MEATY
+> D
+ME-TE
+"""
+
+
+@pytest.mark.parametrize(
+    'op,args,ntrees',
+    [
+        ('drop', '1-10', 90),
+        ('drop', '1,10', 98),
+        ('sample', '10', 10),
+        ('random', '5', 5),
+    ]
+)
+def test_trees(op, ntrees, args, mainnexus, tmp_path, nexus):
+    trees = tmp_path / 'trees.nex'
+    trees.write_text(
+        str(nexus(TREES="\n".join('TREE {} = (a,b,c)d;'.format(i + 1) for i in range(100)))))
+    nex = mainnexus('trees --{} {} {}'.format(op, args or '', trees))
+    assert len(nex.TREES.trees) == ntrees
+
+
+def test_trees_strip_comments(mainnexus):
+    nex = mainnexus('trees --strip-comments "#nexus begin trees; tree 1 = (a[c],b); end;"')
+    assert '[c]' not in str(nex)
+    assert '(a,b)' in str(nex)
+
+
+def test_trees_describe(main, capsys):
+    main('trees --describe "#nexus begin trees; tree the_tree = (a[c],b); end;"')
+    out, _ = capsys.readouterr()
+    assert 'the_tree' in out

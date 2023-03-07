@@ -9,10 +9,6 @@ import commonnexus
 import commonnexus.commands
 
 
-class ParserError(Exception):
-    pass
-
-
 def get_log(name, level=logging.INFO) -> logging.Logger:
     logging.basicConfig(level=level)
     log = logging.getLogger(name)
@@ -61,6 +57,8 @@ class Formatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionH
 
 
 def main(args=None, catch_all=False, parsed_args=None, log=None):
+    from commonnexus.cli_util import ParserError
+
     parser = argparse.ArgumentParser(
         prog=commonnexus.__name__,
         description="{} {} is a set of commands to manipulate of files in the NEXUS "
@@ -88,11 +86,9 @@ def main(args=None, catch_all=False, parsed_args=None, log=None):
         if p.stem == '__init__':
             continue
         mod = importlib.import_module('.{}'.format(p.stem), commonnexus.commands.__name__)
+        help = mod.help() if hasattr(mod, 'help') else mod.__doc__
         subparser = subparsers.add_parser(
-            p.stem,
-            help=mod.help().strip().splitlines()[0],
-            description=mod.help(),
-            formatter_class=Formatter)
+            p.stem, help=help.strip().splitlines()[0], description=help, formatter_class=Formatter)
         if hasattr(mod, 'register'):
             mod.register(subparser)
         subparser.set_defaults(main=mod.run)

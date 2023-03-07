@@ -129,38 +129,39 @@ class CharacterMatrix(collections.OrderedDict):
     @classmethod
     def from_characters(cls,
                         matrix,
-                        chars=None,
+                        drop_chars=None,
                         inverse=False,
                         drop_uncertain=False,
                         drop_polymorphic=False,
-                        drop_statesets=None):
+                        drop_missing=False,
+                        drop_gapped=False,
+                        drop_constant=False):
         """
         :param chars:
         :param inverse:
         :return: A **new** matrix constructed as copy, omitting specified characters.
         """
-        chars = chars or set()
+        drop_chars = drop_chars or set()
         matrix = cls(matrix)
         taxa, characters = matrix.taxa, matrix.characters
         res = collections.OrderedDict([(t, collections.OrderedDict()) for t in matrix])
         for i, col in enumerate(matrix.iter_columns()):
             char = characters[i]
-            if chars and not inverse and (char not in chars):
+            if drop_chars and not inverse and (char in drop_chars):
                 continue
-            if chars and inverse and (char in chars):
+            if drop_chars and inverse and (char not in drop_chars):
                 continue
             if drop_uncertain and any(isinstance(v, set) for v in col):
                 continue
             if drop_polymorphic and any(isinstance(v, tuple) for v in col):
                 continue
-            if drop_statesets:
-                drop = False
-                for stateset in drop_statesets:
-                    if all(v in stateset for v in col):
-                        drop = True
-                        break
-                if drop:
-                    continue
+            if drop_missing and any(v is None for v in col):
+                continue
+            if drop_gapped and any(v == GAP for v in col):
+                continue
+            if drop_constant and \
+                    len(set(frozenset(v) if isinstance(v, set) else v for v in col)) == 1:
+                continue
             for j, v in enumerate(col):
                 res[taxa[j]][char] = v
         return cls(res)
@@ -178,9 +179,9 @@ class CharacterMatrix(collections.OrderedDict):
         if self.has_uncertain or self.has_polymorphic:
             raise ValueError('Cannot convert matrix with uncertain or polymorphic states.')
         if self.has_missing and '?' in self.symbols:
-            raise ValueError('Missing symbol ? used as state symbol')
+            raise ValueError('Missing symbol ? used as state symbol')  # pragma: no cover
         if self.has_gaps and '-' in self.symbols:
-            raise ValueError('Gap symbol - used as state symbol')
+            raise ValueError('Gap symbol - used as state symbol')  # pragma: no cover
 
         res = ["    {}   {}".format(len(self.taxa), len(self.characters))]
         for taxon, states in self.items():
@@ -203,7 +204,7 @@ class CharacterMatrix(collections.OrderedDict):
 
         digits = {s: None for s in self.symbols if s in string.digits}
         if digits:
-            if len(self.symbols) > len(string.ascii_uppercase):
+            if len(self.symbols) > len(string.ascii_uppercase):  # pragma: no cover
                 raise ValueError('Too many symbols in matrix to replace digits with letters')
             for digit in sorted(digits):
                 for c in string.ascii_uppercase:

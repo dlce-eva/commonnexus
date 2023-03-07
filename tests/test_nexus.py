@@ -20,6 +20,9 @@ from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
                 '#NEXUS begin trees; tree ; end;',
                 lambda n: len(n.blocks['TREES']) == 1),
         (
+                '#NEXUS begin distances; matrix t1 0 t2 1 0 t3 2 1 0; end;',
+                lambda n: len(n.taxa) == 3),
+        (
                 "#NEXUS BEGIN AssuMP[co[mm]ent]TiONS; ENDblock;",
                 lambda n: 'ASSUMPTIONS' in n.blocks and n.comments[0] == 'co[mm]ent'),
         (
@@ -121,7 +124,7 @@ def test_Nexus_replace_block():
         TREE tree3 = ((Scarabaeus,Drosophila),Aranaeus);
     END;""")
     trees = []
-    for tree in nex.TREES.commands['TREE']:
+    for tree in nex.TREES.trees:
         trees.append(nex.TREES.translate(tree).newick)
     nex.replace_block(
         nex.TREES, [('TREE', 'tree{} = {}'.format(i + 1, n)) for i, n in enumerate(trees)])

@@ -61,27 +61,23 @@ function :func:`commonnexus.tools.normalise.normalise`.
 **Combining TREES blocks:**
 
 
-`commonnexus binarise`
-----------------------
+`commonnexus characters`
+------------------------
 
-.. command-output:: commonnexus binarise -h
+The `characters` sub-command provides functionality to manipulate the characters matrix in a NEXUS file.
 
-
-**Examples**:
-
-.. command-output:: commonnexus binarise "#NEXUS BEGIN DATA; DIMENSIONS nchar=1; MATRIX t1 a t2 b t3 c t4 d t5 e; END;"
+.. command-output:: commonnexus characters -h
 
 
-`commonnexus describe`
-----------------------
+**"Binarise" the matrix:**:
 
-.. command-output:: commonnexus describe -h
+.. command-output:: commonnexus characters --binarise "#NEXUS BEGIN DATA; DIMENSIONS nchar=1; MATRIX t1 a t2 b t3 c t4 d t5 e; END;"
 
 
 **Describing character set sizes:**
 
-The output of the `describe` command is also suitable for piping to other commands. E.g.
+The output of the most commands is also suitable for piping to other commands. E.g.
 `termgraph <https://pypi.org/project/termgraph/>`_ can be used to display character set sizes:
 
-.. command-output:: commonnexus describe characters.nex --binary-character-size | termgraph
+.. command-output:: commonnexus characters characters.nex --describe binary-setsize | termgraph
     :shell:

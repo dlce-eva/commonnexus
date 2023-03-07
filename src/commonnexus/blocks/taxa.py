@@ -46,7 +46,8 @@ class Taxlabels(Payload):
             [(n, w) for n, w in enumerate(
                 iter_words_and_punctuation(tokens, nexus=nexus), start=1)])
         assert len(self.labels) == len(set(self.labels.values())), 'Duplicates in TAXLABELS'
-        assert not set(str(n) for n in self.labels).intersection(self.labels.values()), 'TAXLABELS'
+        assert not set(str(n) for n in self.labels).intersection(self.labels.values()), \
+            'Numbers as labels'
 
 
 class Taxa(Block):
@@ -67,7 +68,7 @@ class Taxa(Block):
 
     @classmethod
     def from_data(cls,
-                  labels,
+                  labels: typing.Iterable,
                   TITLE: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
                   LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,

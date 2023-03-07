@@ -18,7 +18,7 @@ def test_Trees(nexus):
     assert nex.TREES.TREE.rooted
     node = nex.TREES.translate(nex.TREES.TREE)
     assert node.newick == '((Scarabaeus,Drosophila),Aranaeus)'
-    tree = nex.TREES.commands['TREE'][1]
+    tree = nex.TREES.trees[1]
     assert tree.name == 'tree-2'
     assert nex.TREES.translate(tree).newick == '((Scarabaeus,Drosophila),Aranaeus)'
 
@@ -61,10 +61,10 @@ BEGIN TAXA;
 TAXLABELS A B C;
 END;
 BEGIN TREES;
-TRANSLATE A X,
+\tTRANSLATE A X,
 B Y,
 C Z;
-TREE 'the tree' = [&U] (A,B)C;
+\tTREE 'the tree' = [&U] (A,B)C;
 END;"""
 
 

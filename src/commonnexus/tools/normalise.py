@@ -9,20 +9,25 @@ Normalisation includes
    and taxon labels;
  - translating all TREEs in a TREES block (such that the TRANSLATE command becomes superfluous).
 
-.. note::
+In addition, after normalisation, the following assumptions hold:
 
-    This encompasses the functionality of `python-nexus`' deinterleave command.
+- All commands start on a new line, preceded by "\t" if the command is within a block.
+- All command names (**not** block names) are in uppercase with no "in-name-comment",
+  like "MA[c]TRiX"
 """
 from commonnexus import Nexus
 from commonnexus.blocks.characters import Data
 from commonnexus.blocks import Taxa, Distances, Characters, Trees
 
 
-def normalise(nexus: Nexus, data_to_characters: bool = False) -> Nexus:
+def normalise(nexus: Nexus,
+              data_to_characters: bool = False,
+              strip_comments: bool = False) -> Nexus:
     """
     :param nexus: A `Nexus` object to be normalised in-place.
     :param data_to_characters: Flag signaling whether DATA blocks should be converted to CHARACTER \
     blocks.
+    :param strip_comments: Flag signaling whether to remove all non-command comments.
     :return: The modified `Nexus` object.
 
     .. code-block:: python
@@ -78,6 +83,10 @@ def normalise(nexus: Nexus, data_to_characters: bool = False) -> Nexus:
         TREE 1 = (t1,t2,t3);
         END;
     """
+    if strip_comments:
+        nexus = Nexus([cmd.without_comments() for cmd in nexus], config=nexus.cfg)
+    nexus = Nexus([cmd.with_normalised_whitespace() for cmd in nexus], config=nexus.cfg)
+
     taxlabels = None
     if nexus.characters:
         matrix = nexus.characters.get_matrix()
@@ -96,7 +105,7 @@ def normalise(nexus: Nexus, data_to_characters: bool = False) -> Nexus:
 
     if nexus.TREES:
         trees = []
-        for tree in nexus.TREES.commands['TREE']:
+        for tree in nexus.TREES.trees:
             nwk = nexus.TREES.translate(tree) if nexus.TREES.TRANSLATE else tree.newick
             trees.append((tree.name, nwk, tree.rooted))
         nexus.replace_block(nexus.TREES, Trees.from_data(*trees))

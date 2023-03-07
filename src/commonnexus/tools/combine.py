@@ -67,7 +67,7 @@ def combine(*nexus: Nexus, **kw) -> Nexus:
     trees = []
     for i, nex in enumerate(nexus, start=1):
         if nex.TREES:
-            for tree in nex.TREES.commands['TREE']:
+            for tree in nex.TREES.trees:
                 nwk = nex.TREES.translate(tree) if nex.TREES.TRANSLATE else tree.newick
                 trees.append(('{}.{}'.format(i, tree.name), nwk, tree.rooted))
 

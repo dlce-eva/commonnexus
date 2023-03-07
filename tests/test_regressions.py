@@ -25,14 +25,14 @@ def test_WhitespaceInMatrix_regression(regression):
 def test_RandomAPETrees_regression(regression):
     """Regression: Test that we can parse randomly generated APE/R trees"""
     nex = Nexus.from_file(regression / 'ape_random.trees')
-    assert len(nex.TREES.commands['TREE']) == 2
+    assert len(nex.TREES.trees) == 2
     assert nex.TREES.TREE.name == 'UNTITLED'
 
 
 def test_BadCharsInTaxaName_trees(regression):
     bad_chars = Nexus.from_file(regression / 'bad_chars_in_taxaname.trees')
     assert bad_chars.TREES, 'No TREES block found'
-    assert len(bad_chars.TREES.commands['TREE']) == 1, 'Invalid number of TREEs found'
+    assert len(bad_chars.TREES.trees) == 1, 'Invalid number of TREEs found'
 
     # did we get the translation parsed properly.
     translated = bad_chars.TREES.translate(bad_chars.TREES.TREE)

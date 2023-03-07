@@ -64,7 +64,7 @@ class Translate(Payload):
                 assert isinstance(t, str)
                 value = t
                 continue
-            assert t.is_punctuation and t.text == ','
+            assert t.is_punctuation and t.text == ',', t.text
             self.mapping[key] = value
             key, value = None, None
         if key and value:
@@ -258,6 +258,14 @@ class Trees(Block):
     """
     __commands__ = [Translate, Tree]
 
+    @property
+    def trees(self) -> typing.List[Tree]:
+        """
+        Since TREE is one of the few NEXUS commands which may appear multiple times per block, we
+        provide a shortcut to this list.
+        """
+        return self.commands['TREE']
+
     def validate(self, log=None):
         super().validate(log=log)
         valid, with_translate, tree_seen = True, False, False
@@ -293,7 +301,7 @@ class Trees(Block):
 
                 >>> untranslated = Nexus.from_file(path)
                 >>> trees = []
-                >>> for tree in untranslated.TREES.commands['TREE']:
+                >>> for tree in untranslated.TREES.trees:
                 ...     trees.append(Tree.format(
                 ...         tree.name,
                 ...         untranslated.TREES.translate(tree).newick,
@@ -310,18 +318,12 @@ class Trees(Block):
                 str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
         elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
             mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
-        taxa = set(mapping.values())
 
-        def rename(n):
-            if n.name:
-                if n.name in mapping:
-                    n.name = newick.Node(mapping[n.name], auto_quote=True).name
-                elif n.name not in taxa:
-                    warnings.warn('un-translatable tree node: {}'.format(n.name))
-
-        node = tree.newick if isinstance(tree, Tree) else tree
-        node.visit(rename)
-        return node
+        res = (tree.newick if isinstance(tree, Tree) else tree).rename(auto_quote=True, **mapping)
+        if not set(n.unquoted_name for n in res.walk() if n.name and n.is_leaf).issubset(
+                mapping.values()):
+            warnings.warn('un-translatable leaf nodes!')
+        return res
 
     @classmethod
     def from_data(cls,
@@ -332,11 +334,6 @@ class Trees(Block):
         ID = translate_labels.pop('ID', None)
         nexus = translate_labels.pop('nexus', None)
         cmds = []
-        detranslate = {v: k for k, v in translate_labels.items()}
-
-        def rename(n):
-            if n.name in detranslate:
-                n.name = newick.Node(detranslate[n.name], auto_quote=True).name
 
         if translate_labels:
             cmds.append((
@@ -350,6 +347,6 @@ class Trees(Block):
             if isinstance(nwk, str):
                 nwk = newick.loads(nwk)[0]
             if translate_labels:
-                nwk.visit(rename)
+                nwk.rename(auto_quote=True, **{v: k for k, v in translate_labels.items()})
             cmds.append(('TREE', Tree.format(name, nwk, rooted)))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)

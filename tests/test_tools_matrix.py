@@ -1,6 +1,7 @@
 import pytest
 
 from commonnexus.tools.matrix import CharacterMatrix
+from commonnexus.blocks.characters import GAP
 
 
 def test_multistatise(nexus):
@@ -42,6 +43,7 @@ def test_multistatise_with_all_zero_taxa(nexus):
     Donald                  0001000
     ;""")
     m = CharacterMatrix(nex.DATA.get_matrix())
+    assert len(list(m.iter_rows())) == 15
     assert 'AAAAAAB' in m.to_fasta()
     assert CharacterMatrix.from_fasta(m.to_fasta())['Amber']['1'] == 'B'
     msnex = CharacterMatrix.multistatised(m)
@@ -75,7 +77,7 @@ t2 10{01}yx;
     m = CharacterMatrix.from_characters(matrix, drop_uncertain=True, drop_polymorphic=True)
     assert len(m.characters) == 3
     assert m.to_fasta()
-    m = CharacterMatrix.from_characters(matrix, drop_statesets=[{'1'}])
+    m = CharacterMatrix.from_characters(matrix, drop_constant=True)
     assert len(m.characters) == 4
 
     with pytest.raises(Exception):
@@ -83,6 +85,21 @@ t2 10{01}yx;
 
     with pytest.raises(Exception):
         matrix.to_phylip()
+
+
+@pytest.mark.parametrize(
+    'row,kw',
+    [
+        (['0', '1', None], dict(drop_missing=True)),
+        (['0', GAP, '1'], dict(drop_gapped=True)),
+        (['0', '1'], dict(drop_chars=['c'])),
+        (['0', '1'], dict(drop_chars=['x'], inverse=True)),
+    ]
+)
+def test_from_characters(row, kw):
+    m = CharacterMatrix.from_characters(
+        {'t{}'.format(i + 1): dict(c=v) for i, v in enumerate(row)}, **kw)
+    assert not m.characters
 
 
 def test_CharacterMatrix_from_fasta():

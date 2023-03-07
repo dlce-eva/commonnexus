@@ -20,9 +20,9 @@ class Config:
     The available configuration options are set and accessed from an instance of `Config`.
     """
     #: Specifies whether "-", aka ASCII hyphen-minus, is considered punctuation or not.
-    hyphenminus_is_text: bool = False
+    hyphenminus_is_text: bool = True
     #: Specifies whether "*", aka asterisk, is considered punctuation or not.
-    asterisk_is_text: bool = False
+    asterisk_is_text: bool = True
     #: Specifies whether Newick nodes for TREEs are constructed by parsing the Newick string or
     #: from the Nexus tokens. The latter is slightly faster but will bypass some input validation.
     validate_newick: bool = False
@@ -324,7 +324,7 @@ class Nexus(list):
             return  # pragma: no cover
 
         if object_name == 'TREE':
-            labels = {i + 1: tree.name for i, tree in enumerate(self.TREES.commands['TREE'])}
+            labels = {i + 1: tree.name for i, tree in enumerate(self.TREES.trees)}
 
         if not labels:
             assert n
@@ -400,8 +400,10 @@ class Nexus(list):
             1. A TAXLABELS command in a TAXA block.
             2. A TAXLABELS command in a DATA or CHARACTERS block.
             3. Taxa labels given implicitly as labels in a MATRIX command.
-            4. Taxa labels given as mappings in the TRANSLATE command of a TREES block.
-            5. Taxa labels given implicitly as node names in the Newick representation of a tree in
+            4. A TAXLABELS command in a DISTANCES block.
+            5. Taxa labels given implicitly as labels in a DISTANCES.MATRIX command.
+            6. Taxa labels given as mappings in the TRANSLATE command of a TREES block.
+            7. Taxa labels given implicitly as node names in the Newick representation of a tree in
                a TREE command in a TREES block.
 
         .. warning::
@@ -414,6 +416,8 @@ class Nexus(list):
             return list(self.TAXA.TAXLABELS.labels.values())
         if self.characters:
             return list(self.characters.get_matrix())
+        if self.DISTANCES:
+            return list(self.DISTANCES.get_matrix())
         if self.TREES:
             if self.TREES.TRANSLATE:
                 return list(self.TREES.TRANSLATE.mapping.values())

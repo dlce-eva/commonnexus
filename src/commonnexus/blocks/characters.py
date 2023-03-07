@@ -926,6 +926,15 @@ class Characters(Block):
         # Create the final result, an OrderedDict mapping taxa labels (or numbers) to OrderedDicts
         # mapping character labels or numbers to state symbols or labels.
         matrix = collections.OrderedDict()
+        if not format.transpose:
+            tlabels = {str(k) for k in res.keys()}
+            valid_taxa = {str(k) for k in taxlabels}.union(taxlabels.values())
+            if not tlabels.issubset(valid_taxa):
+                if self.nexus and self.nexus.cfg.strict:  # pragma: no cover
+                    raise ValueError('Found undeclared taxa in characters matrix')
+                else:
+                    warnings.warn('Dropping undeclared taxa from characters matrix.')
+
         for tnum, tlabel in sorted(taxlabels.items()):
             if format.transpose:
                 # We have to pick the tnum column in each list in res.
@@ -999,12 +1008,13 @@ class Characters(Block):
         return charlabels, statelabels
 
     def validate(self, log=None):
+        res = super().validate(log)
         if 'TAXLABELS' in self.commands and not self.DIMENSIONS.newtaxa:
             return log_or_raise(
                 'TAXLABELS may only be defined in {} block if NEWTAXA is specified.'.format(
                     self.name),
                 log=log)
-        return True
+        return res
 
     @classmethod
     def from_data(cls,

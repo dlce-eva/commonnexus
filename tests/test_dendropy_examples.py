@@ -16,6 +16,6 @@ def test_dendropy_suite(dendropyexample):
         else:
             _ = n.characters.get_matrix()
     if n.TREES:
-        for tree in n.TREES.commands['TREE']:
+        for tree in n.TREES.trees:
             _ = tree.newick
     assert not n.DISTANCES

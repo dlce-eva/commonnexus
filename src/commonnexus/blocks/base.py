@@ -150,8 +150,9 @@ class Block(tuple):
         return res
 
     def validate(self, log=None):
+        ncmds = sum(len(cmds) for cmds in self.commands.values())
         if log:
-            log.info('{} block with {} commands'.format(self.name, len(self) - 2))
+            log.debug('{} block with {} commands'.format(self.name, ncmds))
         return True
 
     @classmethod
@@ -197,9 +198,12 @@ class Block(tuple):
         cmds = [
             Command.from_name_and_payload('BEGIN', name or cls.__name__.upper(), comment=comment)]
         if TITLE:
-            cmds.append(Command.from_name_and_payload('TITLE', Word(TITLE).as_nexus_string()))
+            cmds.append(
+                Command.from_name_and_payload(
+                    'TITLE', Word(TITLE).as_nexus_string(), in_block=True))
         if ID:
-            cmds.append(Command.from_name_and_payload('ID', Word(ID).as_nexus_string()))
+            cmds.append(
+                Command.from_name_and_payload('ID', Word(ID).as_nexus_string(), in_block=True))
         if LINK:
             if isinstance(LINK, str):
                 block, _, title = LINK.partition('=')
@@ -207,7 +211,7 @@ class Block(tuple):
             else:
                 assert isinstance(LINK, tuple) and len(LINK) == 2
             cmds.append(Command.from_name_and_payload('LINK', '{} = {}'.format(
-                Word(LINK[0]).as_nexus_string(), Word(LINK[1]).as_nexus_string())))
+                Word(LINK[0]).as_nexus_string(), Word(LINK[1]).as_nexus_string()), in_block=True))
         for cmdspec in commands:
             payload, comment = None, None
             if isinstance(cmdspec, str):
@@ -218,7 +222,8 @@ class Block(tuple):
                 cname, payload, comment = cmdspec
             else:
                 raise ValueError(cmdspec)  # pragma: no cover
-            cmds.append(Command.from_name_and_payload(cname, payload, comment=comment))
+            cmds.append(
+                Command.from_name_and_payload(cname, payload, comment=comment, in_block=True))
         cmds.append(Command.from_name_and_payload('END'))
         return cls(nexus, tuple(cmds))
 

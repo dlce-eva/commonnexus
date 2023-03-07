@@ -6,7 +6,7 @@ From the spec:
 """
 from .base import Block  # noqa: F401
 from .assumptions import Assumptions  # noqa: F401
-from .characters import Characters  # noqa: F401
+from .characters import Characters, Data  # noqa: F401
 from .codons import Codons  # noqa: F401
 from .distances import Distances  # noqa: F401
 from .notes import Notes  # noqa: F401

@@ -1,5 +1,6 @@
-def help():
-    return "Get help on subcommands."
+"""
+Get help on subcommands.
+"""
 
 
 def register(parser):
