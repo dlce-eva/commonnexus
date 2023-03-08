@@ -1,7 +1,6 @@
 import io
 import shlex
 import logging
-import warnings
 
 import pytest
 

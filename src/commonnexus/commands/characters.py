@@ -10,6 +10,7 @@ from commonnexus.blocks.characters import Characters, GAP
 from commonnexus.tools.matrix import CharacterMatrix
 from commonnexus.cli_util import add_nexus, add_flag, validate_operations
 
+
 class Ops(Enum):
     binarise = 1
     multistatise = 2

@@ -110,7 +110,8 @@ class CharacterMatrix(collections.OrderedDict):
         matrix = cls(matrix)
         available_states = list(string.ascii_uppercase + string.ascii_lowercase)
         assert matrix.is_binary, "All state symbols must be 0, 1 or None (missing)"
-        assert len(matrix.characters) <= len(available_states), "Too many characters to multistatise"
+        assert len(matrix.characters) <= len(available_states), \
+            "Too many characters to multistatise"
 
         multicharlabel = multicharlabel or '1'
         # Seed the resulting matrix with `None`, i.e. "missing" values.

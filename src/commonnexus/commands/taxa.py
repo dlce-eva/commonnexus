@@ -1,7 +1,6 @@
 """
 Manipulate the list of TAXA used in a NEXUS file.
 """
-import warnings
 import collections
 
 from commonnexus.cli_util import add_nexus, add_flag, ParserError
@@ -44,8 +43,8 @@ def run(args):
                 for taxon in list(matrix.keys()):
                     if taxon in to_drop or (taxon in to_drop.values()):
                         del matrix[taxon]
-                characters = (Data if args.nexus.characters.name == 'DATA' else Characters).from_data(
-                    matrix)
+                characters = (Data if args.nexus.characters.name == 'DATA' else Characters)\
+                    .from_data(matrix)
                 args.nexus.replace_block(args.nexus.characters, characters)
             if args.nexus.TREES:
                 trees = []
@@ -95,8 +94,9 @@ def run(args):
             if args.nexus.DISTANCES:
                 matrix = collections.OrderedDict()
                 for tax, dists in args.nexus.DISTANCES.get_matrix().items():
-                    matrix[new if tax == number or tax == label else tax] = collections.OrderedDict([
-                        (new if k == number or k == label else k, v) for k, v in dists.items()])
+                    matrix[new if tax == number or tax == label else tax] = \
+                        collections.OrderedDict([
+                            (new if k == number or k == label else k, v) for k, v in dists.items()])
                 args.nexus.replace_block(args.nexus.DISTANCES, Distances.from_data(matrix))
             if args.nexus.TREES:
                 labels = {}

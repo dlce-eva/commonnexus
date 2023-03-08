@@ -2,8 +2,8 @@ import logging
 
 import pytest
 
-from commonnexus import Nexus, Block, Config
-from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
+from commonnexus import Nexus, Block
+from commonnexus.tokenizer import TokenType
 
 
 @pytest.mark.parametrize(
@@ -59,16 +59,16 @@ from commonnexus.tokenizer import TokenType, iter_words_and_punctuation
         (
                 'ape_random.trees',
                 lambda n: n.comments[0] == 'R-package APE, Mon Apr  4 13:30:05 2011' and 'TAXA' in n.blocks),
-        #(
-        #        'quoted_tree_name.nex',
-        #        lambda n: n.TREES.TREE.name.startswith('Transformed') and n.TREES.TREE.newick_node),
-        #(
-        #        'regression/detranslate-beast-2.trees',
-        #        lambda n: str(n.TREES.TREE).startswith('TREE1 = [&R] ((((4[&length')),
-        #(
-        #        'examples/example.trees',
-        #        lambda n: str(n.blocks['TREES'][0].commands['TREE'][2]).endswith('David:0.3086497606)')
-        #)
+        (
+                'quoted_tree_name.nex',
+                lambda n: n.TREES.TREE.name.startswith('Transformed') and n.TREES.TREE.newick),
+        (
+                'regression/detranslate-beast-2.trees',
+                lambda n: str(n.TREES.TREE).startswith('TREE1 = [&R] ((((4[&length')),
+        (
+                'regression/example.trees',
+                lambda n: str(n.blocks['TREES'][0].commands['TREE'][2]).endswith('David:0.3086497606)')
+        )
     ]
 )
 def test_Nexus(nex, expect, fixture_dir):
@@ -91,12 +91,8 @@ def test_Nexus(nex, expect, fixture_dir):
         ('2 - .', 't1 t2 t3 t4', ['t2', 't3', 't4']),
     ]
 )
-def test_Nexus_resolve_set_spec(spec, labels, resolved):
-    nex = Nexus("""#nexus
-BEGIN TAXA;
-DIMENSIONS NTAX={};
-TAXLABELS {};
-END;""".format(len(labels.split()), labels))
+def test_Nexus_resolve_set_spec(nexus, spec, labels, resolved):
+    nex = nexus(TAXA="DIMENSIONS NTAX={}; TAXLABELS {};".format(len(labels.split()), labels))
     assert nex.resolve_set_spec('TAXON', spec.split()) == resolved
 
 

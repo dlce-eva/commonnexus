@@ -142,25 +142,19 @@ def test_Characters_from_data_invalid():
         _ = Characters.from_data({'t1': {'c1': '?'}})
 
 
-def test_Characters_from_data():
-    nex = Nexus("""#NEXUS
-BEGIN TAXA;
-DIMENSIONS NTAX=3;
-TAXLABELS t1 t2 t3;
-END;
-BEGIN CHARACTERS;
+def test_Characters_from_data(nexus):
+    nex = nexus(
+        TAXA="DIMENSIONS NTAX=3; TAXLABELS t1 t2 t3;",
+        CHARACTERS="""
 DIMENSIONS NCHAR=3;
 FORMAT TRANSPOSE NOLABELS;
-MATRIX {01}00 (01)10 001;
-END;
-""")
+MATRIX {01}00 (01)10 001;""")
     assert nex.characters.is_binary()
     matrix = nex.CHARACTERS.get_matrix()
     nex.replace_block(nex.CHARACTERS, Characters.from_data(matrix))
     assert str(nex) == """#NEXUS
 BEGIN TAXA;
-DIMENSIONS NTAX=3;
-TAXLABELS t1 t2 t3;
+DIMENSIONS NTAX=3; TAXLABELS t1 t2 t3;
 END;
 BEGIN CHARACTERS;
 \tDIMENSIONS NCHAR=3;
@@ -169,8 +163,7 @@ BEGIN CHARACTERS;
     t1 {01}(01)0
     t2 010
     t3 001;
-END;
-"""
+END;"""
     nex = Nexus('#nexus')
     nex.append_block(Characters.from_data(
         {'t1': {'1': '0', '2': '1'}, 't2': {'1': '1', '2': '0'}},

@@ -237,6 +237,7 @@ class Distances(Block):
                 ncols -= 1
             return ncols
 
+        # Now read the matrix data:
         for i, line in enumerate(
             list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
             start=1
@@ -289,7 +290,7 @@ class Distances(Block):
         if format.labels is False:
             assert taxlabels
         elif not taxlabels:
-            taxlabels = {i: label for i, label in enumerate(res, start=1)}
+            taxlabels = collections.OrderedDict((i, label) for i, label in enumerate(res, start=1))
 
         # We pad the result rows with None columns on the left as necessary, to make lookup by
         # column index work.
@@ -316,14 +317,16 @@ class Distances(Block):
             for k in list(taxlabels.keys()):
                 if (str(k) not in restaxa) and (taxlabels[k] not in restaxa):
                     del taxlabels[k]
+            taxlabels = collections.OrderedDict(
+                (i, label) for i, label in enumerate(taxlabels.values(), start=1))
 
         res = {taxlabels.get(k, k): v for k, v in res.items()}
-        assert set(res.keys()).issubset(taxlabels.values()), '{} -- {}'.format(set(res.keys()), set(taxlabels.values()))
+        assert set(res.keys()).issubset(taxlabels.values()), "Unmatched taxa in DISTANCES matrix."
 
+        # Now populate a complete matrix with the data read from the tokens:
         matrix = collections.OrderedDict([
             (label, collections.OrderedDict([(ll, None) for ll in taxlabels.values()]))
             for label in taxlabels.values()])
-
         for (na, la), (nb, lb) in itertools.combinations_with_replacement(taxlabels.items(), r=2):
             if na == nb and format.diagonal is False:
                 matrix[la][lb] = 0

@@ -138,6 +138,16 @@ def test_missing():
     assert [None if e is None else int(e)
             for e in nex.DISTANCES.get_matrix()['t1'].values()] == [0, None, 1]
 
+
+def test_incomplete(nexus):
+    nex = nexus(
+        TAXA="DIMENSIONS ntax=4; taxlabels A B C D;",
+        DISTANCES='matrix A 0 C 1 0 D 2 1 0;')
+    matrix = nex.DISTANCES.get_matrix()
+    assert 'B' not in matrix
+    assert matrix['D'] == dict(A=2, C=1, D=0)
+
+
 def test_splitstree(fixture_dir):
     nex = Nexus.from_file(fixture_dir / 'woodmouse.nxs')
     assert nex.DISTANCES
