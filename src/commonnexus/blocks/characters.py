@@ -11,6 +11,11 @@ from commonnexus.tokenizer import (
 )
 from .taxa import Taxlabels
 
+# A state in a CHARACTERS matrix may be missing, gapped, a state symbol or uncertain/polymorphic
+# states.
+State = typing.Union[None, str, typing.Set[str], typing.Tuple[str]]
+StateMatrix = typing.OrderedDict[str, typing.OrderedDict[str, State]]
+
 GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
 #: Some - but not all - punctuation is invalid as (special) state symbol.
 INVALID_SYMBOLS = "()[]{}/\\,;:=*'\"*`<>^"
@@ -787,10 +792,7 @@ class Characters(Block):
         """
         return not bool(self.FORMAT) or (self.FORMAT.symbols == ['0', '1'])
 
-    def get_matrix(self, labeled_states: bool = False) \
-            -> typing.OrderedDict[
-                str, typing.OrderedDict[
-                    str, typing.Union[None, str, typing.Tuple[str], typing.Set[str]]]]:
+    def get_matrix(self, labeled_states: bool = False) -> StateMatrix:
         """
         :param labeled_states: Flag signaling whether state symbols should be translated to state \
         labels (if available).
@@ -1018,9 +1020,9 @@ class Characters(Block):
 
     @classmethod
     def from_data(cls,
-                  matrix: dict,
+                  matrix: StateMatrix,
                   taxlabels: bool = False,
-                  datatype='STANDARD',
+                  datatype: str = 'STANDARD',
                   missing: str = '?',
                   gap: str = '-',
                   TITLE: typing.Optional[str] = None,

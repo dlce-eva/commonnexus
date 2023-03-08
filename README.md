@@ -24,12 +24,45 @@ pip install commonnexus
 ```
 
 
+## Overview
+
+Read NEXUS:
+
+```python
+>>> from commonnexus import Nexus
+>>> nex = Nexus.from_file('docs/characters.nex')
+>>> nex.CHARACTERS.get_matrix()['t1'].values()
+odict_values(['1', '0', '0', '1', '0', '1', '0', '0', '0', '0'])
+```
+
+Write NEXUS:
+
+```python
+>>> from commonnexus import Nexus
+>>> from commonnexus.blocks import Data
+>>> nex = Nexus.from_file('docs/characters.nex')
+>>> print(Nexus.from_blocks(Data.from_data(nex.CHARACTERS.get_matrix())))
+#NEXUS
+BEGIN DATA;
+	DIMENSIONS NCHAR=10;
+	FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+	MATRIX 
+    t1 1001010000
+    t2 0101000100
+    t3 0011101010
+    t4 0001100001
+    t5 0001100001;
+END;
+```
+
+
 ## Command line usage
 
 Installing the `commonnexus` package will also install a command line interface `commonnexus`, which provides several
 sub-commands to manipulate NEXUS files.
 
-Run `commonnexus -h` to get an overview of available sub-commands.
+Run `commonnexus -h` to get an overview of available sub-commands or find detailed documentation
+with examples [on ReadTheDocs](https://commonnexus.readthedocs.io/en/latest/cli.html).
 
 
 ## Python API

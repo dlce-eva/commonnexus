@@ -151,6 +151,13 @@ class Nexus(list):
             with p.open(encoding=config.encoding) as f:
                 return cls(itertools.chain.from_iterable(f), config=config)
 
+    @classmethod
+    def from_blocks(cls, *blocks):
+        res = cls()
+        for block in blocks:
+            res.append_block(block)
+        return res
+
     @property
     def blocks(self) -> typing.Dict[str, typing.List[Block]]:
         """

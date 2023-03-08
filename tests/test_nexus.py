@@ -97,9 +97,7 @@ def test_Nexus_resolve_set_spec(nexus, spec, labels, resolved):
 
 
 def test_Nexus_modification():
-    nex = Nexus()
-    assert nex.BLOCK is None
-    nex.append_block(Block.from_commands([('CMD', 'stuff')]))
+    nex = Nexus.from_blocks(Block.from_commands([('CMD', 'stuff')]))
     assert str(nex.BLOCK.CMD) == 'stuff'
     assert nex.BLOCK.OTHER is None
     nex.append_command(nex.BLOCK, 'other')

@@ -1,38 +1,49 @@
 """
-Tools to manipulate matrices as returned by :meth:`commonnexus.blocks.Characters.get_matrix`.
+Tools to manipulate matrices as returned by
+:meth:`commonnexus.blocks.characters.Characters.get_matrix`.
 """
 import string
 import textwrap
 import collections
+import typing
 
-from commonnexus.blocks.characters import GAP
+from commonnexus.blocks.characters import GAP, State, StateMatrix
+
+HashableState = typing.Union[None, str, typing.FrozenSet[str], typing.Tuple[str]]
 
 
 class CharacterMatrix(collections.OrderedDict):
     """
     A wrapper for the nested ordered dicts returned by
-    :meth:`commonnexus.blocks.Characters.get_matrix`, providing simpler access to some properties
-    of the data and some conversion functionality.
+    :meth:`commonnexus.blocks.characters.Characters.get_matrix`, providing
+    simpler access to some properties of the data and some conversion functionality.
     """
-    def iter_rows(self):
+    def iter_rows(self) -> typing.Generator[typing.List[State], None, None]:
+        """Iterate lists of states per taxon."""
         for row in self.values():
             yield list(row.values())
 
-    def iter_columns(self):
+    def iter_columns(self) -> typing.Generator[typing.List[State], None, None]:
+        """Iterate lists of states per character."""
         for char in self.characters:
             yield [self[taxon][char] for taxon in self.taxa]
 
     @property
-    def taxa(self):
+    def taxa(self) -> typing.List[str]:
+        """The list of taxa (labels or numbers) in a matrix."""
         return list(self.keys())
 
     @property
-    def characters(self):
+    def characters(self) -> typing.List[str]:
+        """The list of characters (labels or numbers) in a matrix."""
         for row in self.values():
             return list(row.keys())
 
     @property
-    def distinct_states(self):
+    def distinct_states(self) -> typing.Set[HashableState]:
+        """
+        The set of distinct states in a matrix (including missing and gap, if found).
+        """
         res = set()
         for r in self.values():
             for v in r.values():
@@ -40,29 +51,30 @@ class CharacterMatrix(collections.OrderedDict):
         return res
 
     @property
-    def has_missing(self):
+    def has_missing(self) -> bool:
         return None in self.distinct_states
 
     @property
-    def has_gaps(self):
+    def has_gaps(self) -> bool:
         return GAP in self.distinct_states
 
     @property
-    def has_uncertain(self):
+    def has_uncertain(self) -> bool:
         for s in self.distinct_states:
             if isinstance(s, frozenset):
                 return True
         return False
 
     @property
-    def has_polymorphic(self):
+    def has_polymorphic(self) -> bool:
         for s in self.distinct_states:
             if isinstance(s, tuple):
                 return True
         return False
 
     @property
-    def symbols(self):
+    def symbols(self) -> typing.Set[typing.Union[str, typing.FrozenSet[str], typing.Union[str]]]:
+        """The set of state symbols, excluding missing and gapped."""
         res = set()
         for s in self.distinct_states:
             if s is not None and s != GAP:
@@ -70,11 +82,11 @@ class CharacterMatrix(collections.OrderedDict):
         return res
 
     @property
-    def is_binary(self):
+    def is_binary(self) -> bool:
         return self.symbols == {'0', '1'} and not self.has_gaps
 
     @classmethod
-    def binarised(cls, matrix):
+    def binarised(cls, matrix: StateMatrix) -> 'CharacterMatrix':
         matrix = cls(matrix)
         charstates = collections.defaultdict(set)
         for i, col in enumerate(matrix.iter_columns()):
@@ -98,7 +110,8 @@ class CharacterMatrix(collections.OrderedDict):
         return cls(new)
 
     @classmethod
-    def multistatised(cls, matrix, multicharlabel=None):
+    def multistatised(cls, matrix: StateMatrix, multicharlabel: typing.Optional[str] = None)\
+            -> 'CharacterMatrix':
         """
         Convert character data of the form 0010000 to a single multi-state character.
         This kind of data may be obtained from coding wordlist data as "word belongs to cognate set"
@@ -129,14 +142,14 @@ class CharacterMatrix(collections.OrderedDict):
 
     @classmethod
     def from_characters(cls,
-                        matrix,
-                        drop_chars=None,
-                        inverse=False,
-                        drop_uncertain=False,
-                        drop_polymorphic=False,
-                        drop_missing=False,
-                        drop_gapped=False,
-                        drop_constant=False):
+                        matrix: StateMatrix,
+                        drop_chars: typing.Optional[typing.Iterable[str]] = None,
+                        inverse: bool = False,
+                        drop_uncertain: bool = False,
+                        drop_polymorphic: bool = False,
+                        drop_missing: bool = False,
+                        drop_gapped: bool = False,
+                        drop_constant: bool = False) -> 'CharacterMatrix':
         """
         :param chars:
         :param inverse:
@@ -167,7 +180,7 @@ class CharacterMatrix(collections.OrderedDict):
                 res[taxa[j]][char] = v
         return cls(res)
 
-    def to_phylip(self):
+    def to_phylip(self) -> str:
         def phylip_name(s):
             res = ''
             for c in s:
@@ -193,10 +206,10 @@ class CharacterMatrix(collections.OrderedDict):
             res.append('{}{}'.format(phylip_name(taxon), seq))
         return '\n'.join(res)
 
-    def to_fasta(self):
+    def to_fasta(self) -> str:
         """
-        :param self:
-        :return:
+        :return: The character matrix serialized in the \
+        `FASTA format <https://en.wikipedia.org/wiki/FASTA_format>`_
         """
         # convert states codes as digits to letters
         # convert missing *and* gap to '-'
@@ -223,7 +236,24 @@ class CharacterMatrix(collections.OrderedDict):
         return '\n'.join(res)
 
     @classmethod
-    def from_fasta(cls, fasta):
+    def from_fasta(cls, fasta: str) -> 'CharacterMatrix':
+        """
+        .. code-block:: python
+
+            >>> from commonnexus import Nexus
+            >>> from commonnexus.blocks import Data
+            >>> from commonnexus.tools.matrix import CharacterMatrix
+            >>> print(Nexus.from_blocks(Data.from_data(CharacterMatrix.from_fasta(
+            ...     '> t1\\nABA BAA\\n> t2\\nBAB ABA'))))
+            #NEXUS
+            BEGIN DATA;
+                DIMENSIONS NCHAR=6;
+                FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="AB";
+                MATRIX
+                t1 ABABAA
+                t2 BABABA;
+            END;
+        """
         def get_row(nchar, seq, taxon):
             if nchar is not None:
                 assert len(seq) == nchar, "Only aligned sequences can be converted."

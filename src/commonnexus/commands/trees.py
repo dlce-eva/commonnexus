@@ -1,5 +1,7 @@
 """
 Manipulate a TREES block in a NEXUS file.
+
+Note: Only one option can be chosen at a time.
 """
 import enum
 import random
@@ -26,15 +28,18 @@ def register(parser):
     parser.add_argument(
         "--sample",
         type=int,
+        metavar='N',
         default=0,
         help="Resample the trees every Nth tree")
     parser.add_argument(
         "--random",
         type=int,
+        metavar='N',
         default=0,
         help="Randomly sample N trees from the treefile")
     parser.add_argument(
         '--random-seed',
+        help="Set random seed (to a number) to allow for reproducible random sampling.",
         type=lambda s: random.seed(int(s)))
     parser.add_argument(
         "--strip-comments",
