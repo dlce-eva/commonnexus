@@ -21,3 +21,7 @@ def test_Block_with_nexus(cmds, kw, expect):
     nex = Nexus()
     nex.append_block(Block.from_commands(cmds, nexus=nex, **kw))
     assert expect(nex.BLOCK, str(nex))
+
+
+def test_Block_as_string():
+    assert str(Block.from_commands([])) == '\nBEGIN BLOCK;\nEND;'

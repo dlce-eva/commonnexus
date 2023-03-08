@@ -1,14 +1,5 @@
 """
-What about PAUP's OPTIONS command:
-
-https://paup.phylosolutions.com/tutorials/quick-start/
-
-begin data;
-dimensions ntax=12 nchar=898;
-format missing=? gap=- matchchar=. interleave datatype=dna;
-options gapmode=missing;
-matrix
-
+Basic building blocks of NEXUS files.
 """
 import re
 import typing
@@ -89,6 +80,16 @@ class Link(Payload):
 class Block(tuple):
     """
     A Block is a list of commands, starting with a BEGIN command and ending with END.
+
+    .. code-block:: python
+
+        >>> print(Block.from_commands([]))
+        BEGIN BLOCK;
+        END;
+        >>> print(Block.from_commands([('CMD', 'A=1')]))
+        BEGIN BLOCK;
+            CMD A=1;
+        END;
     """
     # Custom `Payload` subclasses can be registered for command names:
     __commands__ = {}
@@ -98,6 +99,9 @@ class Block(tuple):
 
     def __init__(self, nexus, cmds):
         self.nexus = nexus
+
+    def __str__(self):
+        return ''.join(str(cmd) for cmd in self)
 
     @cached_property
     def payload_map(self):
@@ -190,7 +194,7 @@ class Block(tuple):
             >>> print(nex)
             #NEXUS
             BEGIN myblock;
-            mycommand with data;
+                mycommand with data;
             END;
             >>> str(nex.MYBLOCK.MYCOMMAND)
             'with data'

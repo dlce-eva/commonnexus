@@ -49,6 +49,9 @@ function :func:`commonnexus.tools.normalise.normalise`.
 `commonnexus combine`
 ---------------------
 
+Combining data from multiple NEXUS files into a single one can be useful to have data and resulting
+trees from a phylogenetic analysis in a single file or to aggregate character data for the same
+set of taxa.
 
 .. command-output:: commonnexus combine -h
 
@@ -56,9 +59,6 @@ function :func:`commonnexus.tools.normalise.normalise`.
 
 .. command-output:: cat characters.nex | commonnexus combine - characters.nex
     :shell:
-
-
-**Combining TREES blocks:**
 
 
 `commonnexus characters`
@@ -81,3 +81,20 @@ The output of the most commands is also suitable for piping to other commands. E
 
 .. command-output:: commonnexus characters characters.nex --describe binary-setsize | termgraph
     :shell:
+
+
+`commonnexus trees`
+-------------------
+
+The `trees` sub-command provides functionality to manipulate the TREES block in a NEXUS file.
+
+.. command-output:: commonnexus trees -h
+
+
+
+`commonnexus taxa`
+------------------
+
+The `taxa` sub-command provides functionality to manipulate the set of taxa in a NEXUS file.
+
+.. command-output:: commonnexus taxa -h

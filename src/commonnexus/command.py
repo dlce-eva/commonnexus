@@ -16,6 +16,9 @@ class Command(tuple):
     def name(self):
         return get_name(self)
 
+    def __str__(self):
+        return ''.join(str(t) for t in self)
+
     def __eq__(self, other):  # To make command removal in Nexus.replace_block work.
         return id(self) == id(other)
 
@@ -89,11 +92,11 @@ class Command(tuple):
         return Command(tokens)
 
     @property
-    def is_beginblock(self):
+    def is_beginblock(self) -> bool:
         return self.name == 'BEGIN'
 
     @property
-    def is_endblock(self):
+    def is_endblock(self) -> bool:
         # In MacClade, PAUP, and COMPONENT, the ENDBLOCK command has been used as
         # a synonym of the END command.
         return self.name in ['END', 'ENDBLOCK']

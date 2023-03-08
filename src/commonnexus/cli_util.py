@@ -1,8 +1,9 @@
 """
-
+Utility functions used to implement `commonnexus` subcommands.
 """
 import re
 import sys
+import typing
 import pathlib
 import argparse
 
@@ -16,7 +17,16 @@ class ParserError(Exception):
 
 
 class NexusType:
-    def __init__(self, many=False):
+    """
+    :class:`Ǹexus` as `Argument type <https://docs.python.org/3/library/argparse.html#type>`_
+
+    Can create :class:`Ǹexus` instances from
+
+    - file paths
+    - string content
+    - data read from `stdin`
+    """
+    def __init__(self, many: bool = False):
         self._many = many
 
     def __call__(self, string):
@@ -36,6 +46,27 @@ class NexusType:
 
 
 def add_nexus(parser, many=False):
+    """
+    Adds (a) positional argument(s) `nexus` to the argument parser.
+
+    :param parser:
+    :param many:
+
+    .. code-block:: python
+
+        >>> import argparse
+        >>> from commonnexus.cli_util import add_nexus
+        >>> parser = argparse.ArgumentParser()
+        >>> add_nexus(parser)
+        >>> args = parser.parse_args(['#nexus begin block; end;'])
+        >>> print(args.nexus.BLOCK)
+        begin block; end;
+        >>> parser = argparse.ArgumentParser()
+        >>> add_nexus(parser, many=True)
+        >>> args = parser.parse_args(['#nexus begin block; end;', '#nexus begin other; end;'])
+        >>> len(args.nexus)
+        2
+    """
     if many:
         parser.add_argument(
             'nexus',
@@ -54,7 +85,7 @@ def add_flag(parser, name, help):
     parser.add_argument('--{}'.format(name), action='store_true', default=False, help=help)
 
 
-def list_of_ranges(dstring):
+def list_of_ranges(dstring) -> typing.List[int]:
     """
     Converts a comma-separated list of 1-based ranges into a list of 1-based indices.
 
