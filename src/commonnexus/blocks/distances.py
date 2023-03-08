@@ -1,5 +1,6 @@
 import typing
 import decimal
+import warnings
 import itertools
 import collections
 
@@ -290,19 +291,34 @@ class Distances(Block):
         elif not taxlabels:
             taxlabels = {i: label for i, label in enumerate(res, start=1)}
 
-        res = {taxlabels.get(k, k): v for k, v in res.items()}
-
         # We pad the result rows with None columns on the left as necessary, to make lookup by
         # column index work.
         if format.triangle == 'UPPER':
             for i, key in enumerate(res):
                 res[key] = [None] * (i if format.diagonal else i + 1) + res[key]
             if format.diagonal is False and format.labels is False:
-                assert (ntax - 1) not in res
-                res[ntax - 1] = [None]
+                assert (ntax) not in res, str(res.keys())
+                res[ntax] = [None]
         elif format.triangle == 'BOTH' and not format.diagonal:
             for i, key in enumerate(res):
                 res[key].insert(i, None)
+
+        # Match matrix rows to expected taxa:
+        validtaxa = set(str(k) for k in taxlabels).union(taxlabels.values())
+        restaxa = {str(k): k for k in res}
+        if not set(restaxa).issubset(validtaxa):
+            warnings.warn('Pruning undeclared taxa from DISTANCES matrix.')
+            for taxon in set(restaxa) - validtaxa:
+                del res[restaxa[taxon]]
+
+        if len(res) < len(taxlabels):
+            # Not all taxa appear in the matrix. Prune expected taxa to make lookup work.
+            for k in list(taxlabels.keys()):
+                if (str(k) not in restaxa) and (taxlabels[k] not in restaxa):
+                    del taxlabels[k]
+
+        res = {taxlabels.get(k, k): v for k, v in res.items()}
+        assert set(res.keys()).issubset(taxlabels.values()), '{} -- {}'.format(set(res.keys()), set(taxlabels.values()))
 
         matrix = collections.OrderedDict([
             (label, collections.OrderedDict([(ll, None) for ll in taxlabels.values()]))

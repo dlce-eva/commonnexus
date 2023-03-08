@@ -64,26 +64,65 @@ def test_combine(main, capsys, fixture_dir):
     assert out.strip() == '#NEXUS'
 
 
-def test_taxa(main, capsys, fixture_dir, tmp_path, caplog):
+def test_taxa(main, mainnexus, capsys, fixture_dir, tmp_path, caplog):
     main('taxa {}'.format(fixture_dir / 'christophchamp_basic.nex'))
     out, _ = capsys.readouterr()
     assert len([l for l in out.split('\n') if l.strip()]) == 4
-    main('taxa --drop A {}'.format(fixture_dir / 'christophchamp_basic.nex'))
-    out, _ = capsys.readouterr()
-    assert Nexus(out).taxa == ['B', 'C', 'D']
-    #
-    # FIXME: drop and rename with DISTANCES!
-    #
-    main('taxa --rename A,X {}'.format(fixture_dir / 'christophchamp_basic.nex'))
-    out, _ = capsys.readouterr()
-    assert Nexus(out).taxa == ['X', 'B', 'C', 'D']
+    out = mainnexus('taxa --drop A {}'.format(fixture_dir / 'christophchamp_basic.nex'))
+    assert out.taxa == ['B', 'C', 'D']
+
+    out = mainnexus('taxa --rename A,X {}'.format(fixture_dir / 'christophchamp_basic.nex'))
+    assert out.taxa == ['X', 'B', 'C', 'D']
+
     nex = tmp_path.joinpath('test.nex')
-    nex.write_text(out, encoding='utf8')
+    nex.write_text(str(out), encoding='utf8')
     main('taxa --check {}'.format(str(nex)))
     assert not caplog.records
 
+    nex = tmp_path / 'test.nex'
+    nex.write_text("""#nexus
+begin taxa; dimensions ntax=4; taxlabels A B C D; end;
+begin distances;
+matrix A 0 B 1 0 C 2 1 0 D 3 2 1 0;
+end;""", encoding='utf8')
+    out = mainnexus('taxa --rename A,X {}'.format(nex))
+    assert out.taxa == ['X', 'B', 'C', 'D']
+    assert 'X' in out.DISTANCES.get_matrix()
+
+    out = mainnexus('taxa --drop A {}'.format(nex))
+    assert out.taxa == ['B', 'C', 'D']
+    assert list(out.DISTANCES.get_matrix()) == ['B', 'C', 'D']
+
+    nex = tmp_path / 'test.nex'
+    nex.write_text("""#nexus
+    begin taxa; dimensions ntax=4; taxlabels A B C D; end;
+    begin trees; translate 1 A, 2 B, 3 C, 4 D;
+    tree 1 = (1,2,3,4);
+    end;""", encoding='utf8')
+    out = mainnexus('taxa --rename A,X {}'.format(nex))
+    assert out.taxa == ['X', 'B', 'C', 'D']
+    assert 'X' in out.TREES.TRANSLATE.mapping.values()
+
+    out = mainnexus('taxa --drop A {}'.format(nex))
+    assert out.taxa == ['B', 'C', 'D']
+    assert not out.TREES.TRANSLATE
+
+    out = mainnexus('taxa --rename A,X "#nexus begin distances; matrix A 0 B 1 0 C 2 1 0; end;"')
+    assert 'X' in out.taxa
+    out = mainnexus('taxa --drop A "#nexus begin distances; matrix A 0 B 1 0 C 2 1 0; end;"')
+    assert list(out.DISTANCES.get_matrix()) == ['B', 'C']
+
 
 def test_taxa_check(main, caplog, tmp_path):
+    nex = tmp_path / 'test.nex'
+    nex.write_text("""#nexus
+    begin taxa; dimensions ntax=3; taxlabels A B C; end;
+    begin distances;
+    matrix A 0 X 1 0;
+    end;""", encoding='utf8')
+    with pytest.warns(UserWarning, match='undeclared taxa'):
+        main('taxa --check {}'.format(nex))
+
     nex = tmp_path / 'test.nex'
     nex.write_text("""#nexus
 begin taxa; dimensions ntax=4; taxlabels A B C D; end;
@@ -91,8 +130,9 @@ begin data;
 dimensions nchar=1;
 matrix A 1 B 0 C 0 X 0;
 end;""", encoding='utf8')
-    main('taxa --check {}'.format(nex))
-    assert len(caplog.records) == 2
+    with pytest.warns(UserWarning, match='undeclared taxa'):
+        main('taxa --check {}'.format(nex))
+    assert len(caplog.records) == 1
     caplog.clear()
 
     nex = tmp_path / 'test.nex'
@@ -102,8 +142,7 @@ begin trees;
 translate 1 A, 2 B, 3 C, 4 X;
 tree 1 = ((Y,A,B)Z);
 end;""", encoding='utf8')
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
+    with pytest.warns(UserWarning):
         main('taxa --check {}'.format(nex))
     assert len(caplog.records) == 3
 

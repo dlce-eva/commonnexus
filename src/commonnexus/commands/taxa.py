@@ -58,23 +58,23 @@ def run(args):
                     trees.append((tree.name, nwk, tree.rooted))
                 args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees))
 
-            if args.nexus.TAXA:
-                args.nexus.replace_block(args.nexus.TAXA, Taxa.from_data(to_keep))
-            else:
-                args.nexus.append_block(Taxa.from_data(to_keep))
-
             if args.nexus.DISTANCES:
                 matrix = args.nexus.DISTANCES.get_matrix()
                 for taxon in list(matrix.keys()):
                     if taxon in to_drop or (taxon in to_drop.values()):
-                        del matrix[taxon]
+                        del matrix[taxon]  # pragma: no cover
 
                 for dists in matrix.values():
                     for taxon in list(dists.keys()):
                         if taxon in to_drop or (taxon in to_drop.values()):
-                            del dists[taxon]
+                            del dists[taxon]  # pragma: no cover
 
                 args.nexus.replace_block(args.nexus.DISTANCES, Distances.from_data(matrix))
+
+            if args.nexus.TAXA:
+                args.nexus.replace_block(args.nexus.TAXA, Taxa.from_data(to_keep))
+            else:
+                args.nexus.append_block(Taxa.from_data(to_keep))
 
         if args.rename:
             assert len(args.rename) == 2
@@ -83,7 +83,7 @@ def run(args):
                 if old == number or old == label:
                     break
             else:
-                raise ParserError('No taxon matching {} found'.format(old))
+                raise ParserError('No taxon matching {} found'.format(old))  # pragma: no cover
 
             taxa[number] = new
             if args.nexus.characters:
@@ -96,7 +96,7 @@ def run(args):
                 matrix = collections.OrderedDict()
                 for tax, dists in args.nexus.DISTANCES.get_matrix().items():
                     matrix[new if tax == number or tax == label else tax] = collections.OrderedDict([
-                        (new if tax == number or tax == label else k, v) for k, v in dists.items()])
+                        (new if k == number or k == label else k, v) for k, v in dists.items()])
                 args.nexus.replace_block(args.nexus.DISTANCES, Distances.from_data(matrix))
             if args.nexus.TREES:
                 labels = {}
@@ -120,16 +120,11 @@ def run(args):
 
     if args.check:
         if args.nexus.characters:
-            with warnings.catch_warnings(record=True) as w:
-                mtaxa = list(args.nexus.characters.get_matrix())
-                if w and "undeclared taxa" in str(w[-1].message):
-                    args.log.error('Invalid taxa labels in characters matrix.')
+            mtaxa = list(args.nexus.characters.get_matrix())
             if len(set(mtaxa).intersection(set(taxa).union(taxa.values()))) < len(taxa):
                 args.log.warning('Not all taxa appear in characters matrix')
         if args.nexus.DISTANCES:
-            mtaxa = list(args.nexus.DISTANCES.get_matrix())
-            if not set(mtaxa).issubset(set(taxa).union(taxa.values())):
-                args.log.error('Invalid taxa labels in DISTANCES matrix.')
+            args.nexus.DISTANCES.get_matrix()
         if args.nexus.TREES:
             if args.nexus.TREES.TRANSLATE:
                 if not set(args.nexus.TREES.TRANSLATE.mapping.values())\

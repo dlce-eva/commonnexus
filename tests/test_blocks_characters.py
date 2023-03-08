@@ -154,6 +154,7 @@ FORMAT TRANSPOSE NOLABELS;
 MATRIX {01}00 (01)10 001;
 END;
 """)
+    assert nex.characters.is_binary()
     matrix = nex.CHARACTERS.get_matrix()
     nex.replace_block(nex.CHARACTERS, Characters.from_data(matrix))
     assert str(nex) == """#NEXUS
