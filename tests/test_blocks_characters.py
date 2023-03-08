@@ -100,6 +100,11 @@ MATRIX
             'DIMENSIONS NCHAR = 7; FORMAT DATATYPE=DNA MATCHCHAR = .; MATRIX taxon_1 GACCTTA taxon_2 ...T..C taxon_3 ..T.C..;',
             lambda m: ''.join(m['taxon_2'].values()) == 'GACTTTC',
         ),
+        (
+            None,
+            'dimensions nchar=3; matrix *T 101 OtherT 010;',
+            lambda m: '*T' in m,
+        )
     ]
 )
 def test_Characters_get_matrix(characters, taxa, expect):

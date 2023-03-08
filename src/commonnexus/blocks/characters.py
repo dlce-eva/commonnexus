@@ -828,7 +828,8 @@ class Characters(Block):
                 list(iter_lines(self.MATRIX._tokens)) if format.interleave else
                 [self.MATRIX._tokens],
                 start=1):
-            words = iter_words_and_punctuation(line, allow_punctuation_in_word='+-')
+            words = iter_words_and_punctuation(
+                line, allow_punctuation_in_word='+-', nexus=self.nexus)
             while 1:
                 try:
                     t = next(words)
