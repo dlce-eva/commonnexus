@@ -169,10 +169,11 @@ BEGIN CHARACTERS;
     t2 010
     t3 001;
 END;"""
+    assert nex.characters.get_matrix() == matrix
+
     nex = Nexus('#nexus')
-    nex.append_block(Characters.from_data(
-        {'t1': {'1': '0', '2': '1'}, 't2': {'1': '1', '2': '0'}},
-        taxlabels=True))
+    matrix = {'t1': {'1': '0', '2': '1'}, 't2': {'1': '1', '2': '0'}}
+    nex.append_block(Characters.from_data(matrix, taxlabels=True))
     assert str(nex) == """#NEXUS
 BEGIN CHARACTERS;
 \tDIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
@@ -182,10 +183,11 @@ BEGIN CHARACTERS;
     t1 01
     t2 10;
 END;"""
+    assert nex.characters.get_matrix() == matrix
+
     nex = Nexus('#nexus')
-    nex.append_block(Characters.from_data(
-        {'t1': {'1': 'a', '2': 'B'}, 't2': {'1': 'A', '2': 'b'}},
-        taxlabels=True))
+    matrix = {'t1': {'1': 'a', '2': 'B'}, 't2': {'1': 'A', '2': 'b'}}
+    nex.append_block(Characters.from_data(matrix, taxlabels=True))
     assert str(nex) == """#NEXUS
 BEGIN CHARACTERS;
 \tDIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
@@ -195,6 +197,7 @@ BEGIN CHARACTERS;
     t1 aB
     t2 Ab;
 END;"""
+    assert nex.characters.get_matrix() == matrix
 
 
 @pytest.mark.parametrize(
