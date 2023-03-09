@@ -154,6 +154,7 @@ end;""", encoding='utf8')
         (2, 't1 10 t2 01 t3 00', 'multistatise', 'k', 1),
         (4, 't1 1001 t2 0111 t3 0010', 'multistatise', '"lambda c: str(int(c)%2)"', 2),
         (2, 't1 10 t2 11 t3 10', 'drop', 'constant', 1),
+        (2, 't1 10 t2 11 t3 10', 'drop-numbered', '2', 1),
     ]
 )
 def test_characters(mainnexus, inchar, matrix, op, args, outchar):

@@ -10,7 +10,7 @@ from commonnexus import Nexus
 from commonnexus.blocks.characters import Characters, GAP
 from commonnexus.tools.matrix import CharacterMatrix
 from commonnexus.tools.combine import combine
-from commonnexus.cli_util import add_nexus, add_flag, validate_operations
+from commonnexus.cli_util import add_nexus, add_flag, validate_operations, list_of_ranges
 
 
 class Ops(Enum):
@@ -18,7 +18,8 @@ class Ops(Enum):
     multistatise = 2
     convert = 3
     drop = 4
-    describe = 5
+    drop_numbered = 5
+    describe = 6
 
 
 def register(parser):
@@ -44,6 +45,10 @@ def register(parser):
         help="Drop specified characters from a matrix.",
         choices='constant polymorphic uncertain missing gapped'.split())
     parser.add_argument(
+        '--' + Ops.drop_numbered.name.replace('_', '-'),
+        type=list_of_ranges,
+        help="Drop characters specified by (ranges of) numbers from a matrix.")
+    parser.add_argument(
         '--' + Ops.describe.name,
         help="",
         choices=['binary-setsize', 'binary-unique', 'binary-constant', 'states-distribution'])
@@ -62,7 +67,7 @@ def run(args):
         if args.multistatise.startswith('lambda'):
             groupkey = eval(args.multistatise)
         else:
-            groupkey = lambda c: args.multistatise
+            groupkey = lambda c: args.multistatise  # noqa: E731
         charpartitions = collections.defaultdict(list)
         matrix = CharacterMatrix(args.nexus.characters.get_matrix())
         for char in matrix.characters:
@@ -87,6 +92,11 @@ def run(args):
         #
         kw = {'drop_{}'.format(args.drop): True}
         new = CharacterMatrix.from_characters(args.nexus.characters.get_matrix(), **kw)
+    elif args.drop_numbered:
+        m = CharacterMatrix(args.nexus.characters.get_matrix())
+        kw = {'drop_chars': [
+            c for i, c in enumerate(m.characters, start=1) if i in args.drop_numbered]}
+        new = CharacterMatrix.from_characters(m, **kw)
     elif args.convert:
         m = CharacterMatrix(args.nexus.characters.get_matrix())
         print(getattr(m, 'to_' + args.convert)())
