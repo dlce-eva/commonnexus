@@ -77,13 +77,13 @@ class CharacterMatrix(collections.OrderedDict):
         """The set of state symbols, excluding missing and gapped."""
         res = set()
         for s in self.distinct_states:
-            if s is not None and s != GAP:
+            if (s is not None) and (s != GAP):
                 res |= set(s)
         return res
 
     @property
     def is_binary(self) -> bool:
-        return self.symbols == {'0', '1'} and not self.has_gaps
+        return self.symbols.issubset({'0', '1'}) and not self.has_gaps
 
     @classmethod
     def binarised(cls, matrix: StateMatrix) -> 'CharacterMatrix':

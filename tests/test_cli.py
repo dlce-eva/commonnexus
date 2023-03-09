@@ -20,7 +20,8 @@ def main():
 def mainnexus(main, capsys):
     def f(args):
         main(args)
-        return Nexus(capsys.readouterr()[0])
+        out = capsys.readouterr()[0]
+        return Nexus(out)
     return f
 
 
@@ -150,7 +151,8 @@ end;""", encoding='utf8')
     'inchar,matrix,op,args,outchar',
     [
         (1, 't1 a t2 b t3 c', 'binarise', '', 3),
-        (2, 't1 10 t2 01 t3 00', 'multistatise', '', 1),
+        (2, 't1 10 t2 01 t3 00', 'multistatise', 'k', 1),
+        (4, 't1 1001 t2 0111 t3 0010', 'multistatise', '"lambda c: str(int(c)%2)"', 2),
         (2, 't1 10 t2 11 t3 10', 'drop', 'constant', 1),
     ]
 )

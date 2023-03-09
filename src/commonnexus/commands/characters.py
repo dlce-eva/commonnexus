@@ -6,8 +6,10 @@ Note: Only one option can be chosen at a time.
 import collections
 from enum import Enum
 
+from commonnexus import Nexus
 from commonnexus.blocks.characters import Characters, GAP
 from commonnexus.tools.matrix import CharacterMatrix
+from commonnexus.tools.combine import combine
 from commonnexus.cli_util import add_nexus, add_flag, validate_operations
 
 
@@ -25,10 +27,14 @@ def register(parser):
         parser,
         Ops.binarise.name,
         help="Recode a matrix such that it only contains binary characters.")
-    add_flag(
-        parser,
-        Ops.multistatise.name,
-        help="Recode a matrix such that it only contains one multistate character.")
+    parser.add_argument(
+        '--' + Ops.multistatise.name,
+        metavar="GROUPKEY",
+        default=None,
+        help="Recode a matrix such that it only contains one multistate characters for each "
+             "group of characters as determined by GROUPKEY, a Python lambda function accepting "
+             "character label and returning a key (or a string to group all characters into one "
+             "multistate character labeled with this string).")
     parser.add_argument(
         '--' + Ops.convert.name,
         choices=['fasta', 'phylip'],
@@ -53,7 +59,28 @@ def run(args):
                        args.nexus.characters.FORMAT.datatype == 'STANDARD'
         new = CharacterMatrix.binarised(args.nexus.characters.get_matrix())
     elif args.multistatise:
-        new = CharacterMatrix.multistatised(args.nexus.characters.get_matrix())
+        if args.multistatise.startswith('lambda'):
+            groupkey = eval(args.multistatise)
+        else:
+            groupkey = lambda c: args.multistatise
+        charpartitions = collections.defaultdict(list)
+        matrix = CharacterMatrix(args.nexus.characters.get_matrix())
+        for char in matrix.characters:
+            charpartitions[groupkey(char)].append(char)
+        matrices = [
+            (key, CharacterMatrix.from_characters(matrix, drop_chars=chars, inverse=True))
+            for key, chars in charpartitions.items()]
+        if len(matrices) == 1:
+            new = CharacterMatrix.multistatised(matrices[0][1], multicharlabel=matrices[0][0])
+            args.nexus.replace_block(args.nexus.characters, Characters.from_data(new))
+            new = args.nexus
+        else:
+            ms = []
+            for key, m in matrices:
+                ms.append(CharacterMatrix.multistatised(m, multicharlabel=key))
+            new = combine(*[Nexus.from_blocks(Characters.from_data(m)) for m in ms])
+        print(new)
+        return
     elif args.drop:
         #
         # FIXME: drop unique - for binary matrices
