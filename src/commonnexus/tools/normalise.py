@@ -93,7 +93,9 @@ def normalise(nexus: Nexus,
         taxlabels = list(matrix.keys())
         characters = nexus.DATA or nexus.CHARACTERS
         cls = Data if characters.name == 'DATA' and not data_to_characters else Characters
-        nexus.replace_block(characters, cls.from_data(matrix))
+        nexus.replace_block(
+            characters,
+            cls.from_data(matrix, statelabels=nexus.characters.get_charstatelabels()[1]))
 
     if nexus.DISTANCES:
         matrix = nexus.DISTANCES.get_matrix()

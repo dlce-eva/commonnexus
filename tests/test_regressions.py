@@ -4,11 +4,28 @@ import warnings
 import pytest
 
 from commonnexus import Nexus
+from commonnexus.blocks import Characters
 
 
 @pytest.fixture
 def regression(fixture_dir):
     return fixture_dir / 'regression'
+
+
+def test_Morphbank(regression):
+    nex = Nexus.from_file(regression / 'mbank_X962_11-22-2013_1534.nex')
+    assert len(nex.NOTES.texts) == 29
+    notes = nex.NOTES.get_texts(character='Lateral ethmoid-lacrimal articulation, orientation')
+    assert len(notes) == 1
+    assert notes[0].text == 'Waldman, 1986'
+
+    matrix = nex.characters.get_matrix(labeled_states=True)
+    assert matrix['Sargocentron vexillarium']['Vomer, shape of tooth patch'] == 'Trapezoidal to ovate'
+
+    m = nex.characters.get_matrix()
+    nex = Nexus.from_blocks(
+        Characters.from_data(m, statelabels=nex.characters.get_charstatelabels()[1]))
+    assert nex.characters.get_matrix(labeled_states=True) == matrix
 
 
 def test_WhitespaceInMatrix_regression(regression):

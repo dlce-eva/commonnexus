@@ -320,13 +320,13 @@ class Nexus(list):
             chars = chars or []  # Labeled states make only sense in relation to characters.
             block = self.CHARACTERS or self.DATA
             if block:
-                _, slabels = block.get_charstatelabels(labeled_states=True)
+                _, slabels = block.get_charstatelabels()
                 res = collections.defaultdict(list)
                 # need to transpose
                 for char, states in slabels.items():
                     if char in chars:
-                        res[char] = [state for i, state in enumerate(states)
-                                     if i + 1 in numbers(len(states))]
+                        res[char] = [
+                            label or state for state, label in states.items() if state in spec]
                 return res
             return  # pragma: no cover
 

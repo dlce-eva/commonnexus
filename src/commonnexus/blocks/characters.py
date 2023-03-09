@@ -811,8 +811,7 @@ class Characters(Block):
         # Determine dimensions and labels:
         ntax, taxlabels = self.get_taxlabels(format)
         nchar = self.DIMENSIONS.nchar
-        charlabels, statelabels = self.get_charstatelabels(
-            nchar, format, labeled_states=labeled_states)
+        charlabels, statelabels = self.get_charstatelabels(nchar, format)
         if format.transpose and (not format.interleave) and (format.labels != False) and (not ntax):
             raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
         if format.datatype == 'CONTINUOUS':  # pragma: no cover
@@ -855,7 +854,7 @@ class Characters(Block):
                                 w = next(words)
                             assert w.text == '}', "Expected }"
                             entries.append(vals)
-                        elif t.text in format.symbols:
+                        elif t.text in format.symbols:  # pragma: no cover
                             entries.append(t.text)
                         else:  # pragma: no cover
                             raise ValueError('Unexpected punctuation in matrix')
@@ -956,8 +955,9 @@ class Characters(Block):
             for entries in matrix.values():
                 for char in entries:
                     if char in statelabels:
-                        entries[char] = apply_to_state(
-                            lambda s: statelabels[char].get(s, s), entries[char])
+                        if entries[char] not in {None, GAP}:
+                            entries[char] = apply_to_state(
+                                lambda s: statelabels[char].get(s) or s, entries[char])
         return matrix
 
     def get_taxlabels(self, format):
@@ -980,7 +980,7 @@ class Characters(Block):
             taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
         return ntax, taxlabels
 
-    def get_charstatelabels(self, nchar=None, format=None, labeled_states=False):
+    def get_charstatelabels(self, nchar=None, format=None):
         nchar = nchar or self.DIMENSIONS.nchar
         charlabels = {i + 1: str(i + 1) for i in range(nchar)}
         statelabels = {}
@@ -996,17 +996,19 @@ class Characters(Block):
         if self.STATELABELS:
             statelabels = {c.number: c.states for c in self.STATELABELS.characters}
 
-        if labeled_states:
+        format = format or self.FORMAT or Format(None)
+        if statelabels:
             statelabels = {charlabels[cnum]: states for cnum, states in statelabels.items()}
-            format = format or self.FORMAT
-            if format:
-                for clabel in statelabels:
-                    states = statelabels[clabel]
-                    labeled = {}
+            for clabel in statelabels:
+                states = statelabels[clabel]
+                labeled = collections.OrderedDict()
+                if format:
                     for i, symbol in enumerate(format.symbols):
                         if i < len(states) and states[i] != '_':
                             labeled[symbol] = states[i]
-                    statelabels[clabel] = labeled
+                statelabels[clabel] = labeled
+        else:
+            statelabels = {}
         assert len(charlabels) == nchar
         return charlabels, statelabels
 
@@ -1023,6 +1025,7 @@ class Characters(Block):
     def from_data(cls,
                   matrix: StateMatrix,
                   taxlabels: bool = False,
+                  statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None,
                   datatype: str = 'STANDARD',
                   missing: str = '?',
                   gap: str = '-',
@@ -1114,11 +1117,16 @@ class Characters(Block):
             ('FORMAT', 'DATATYPE=STANDARD {}MISSING={} GAP={} SYMBOLS="{}"'.format(
                 'RESPECTCASE ' if respectcase else '', missing, gap, symbols)),
         ]
+        statelabels = statelabels or {}
         if any(k != v for k, v in charlabels.items()):
             cmds.append((
                 'CHARSTATELABELS',
-                ', '.join('\n    {} {}'.format(
-                    n, Word(l).as_nexus_string()) for n, l in charlabels.items())))
+                ', '.join('\n    {} {}{}'.format(
+                    n,
+                    Word(l).as_nexus_string(),
+                    '/' + ' '.join(Word(ll).as_nexus_string() for ll in statelabels[l].values())
+                    if l in statelabels else '',
+                ) for n, l in charlabels.items())))
         if taxlabels:
             cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
         cmds.append(('MATRIX', ''.join(rows)))

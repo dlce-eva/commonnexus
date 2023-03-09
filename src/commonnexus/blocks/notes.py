@@ -58,7 +58,7 @@ class Text(Payload):
                         kw['chars'] = self.characters
                     setattr(self, key, self.nexus.resolve_set_spec(
                         key[:-1].upper(), getattr(self, key), **kw))
-        assert self.source in ['FILE', 'INLINE'], self.source
+        assert self.source in [None, 'FILE', 'INLINE'], self.source
 
 
 class Picture(Payload):
@@ -141,3 +141,16 @@ class Notes(Block):
         PICTURE and ``SOURCE=RESOURCE`` for TEXT is not supported by `commonnexus`.
     """
     __commands__ = {Text, Picture}
+
+    @property
+    def texts(self):
+        return self.commands['TEXT']
+
+    def get_texts(self, taxon=None, character=None, tree=None):
+        res = []
+        for text in self.texts:
+            if (taxon and taxon in text.taxons) or \
+                    (character and character in text.characters) or \
+                    (tree and tree in text.trees):
+                res.append(text)
+        return res
