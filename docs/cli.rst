@@ -15,6 +15,11 @@ easily be chained together with other shell commands:
 .. command-output:: echo "#nexus begin trees; tree 1 = ((a,b)c); end;" | commonnexus normalise - | grep TREE | grep -v TREES
     :shell:
 
+.. warning::
+
+    While :class:`commonnexus.Nexus <commonnexus.nexus.Nexus>` can read multiple blocks with the same
+    name just fine, most of the commands listed below assume just one block per block type in their
+    input (i.e. only act on the first occurrence of each block type).
 
 In the following we describe the available sub-commands.
 

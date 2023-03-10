@@ -38,6 +38,16 @@ def test_help(main, capsys):
     main('help')
 
 
+def test_split(main, tmp_path, fixture_dir, caplog):
+    with caplog.at_level(logging.INFO):
+        main('split --stem test --outdir {} {}'.format(
+            tmp_path, fixture_dir / 'multitaxa_mesquite.nex'))
+    assert len(caplog.records) == 10
+    for rec in caplog.records:
+        _, _, fname = rec.message.partition('written to ')
+        assert tmp_path.joinpath(fname).exists()
+
+
 def test_normalise(main, capsys, mocker):
     main('normalise "#nexus begin block; end;"')
     out, _ = capsys.readouterr()
