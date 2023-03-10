@@ -37,6 +37,13 @@ def test_Morphobank(regression):
            ('absent', 'present, small and well-spaced from each other')
 
 
+def test_treebase(regression):
+    nex = Nexus.from_file(regression / 'treebase-matrix-123.nex')
+    assert len(nex.characters.get_matrix()) == 64
+    nex = Nexus.from_file(regression / 'treebase-tree-1234.nex')
+    assert set(nex.taxa ) == {n.name for n in nex.TREES.TREE.newick.walk() if n.is_leaf}
+
+
 def test_WhitespaceInMatrix_regression(regression):
     """Regression: Test that leading whitespace in a data matrix is parsed ok"""
     nex = Nexus.from_file(regression / 'white_space_in_matrix.nex')

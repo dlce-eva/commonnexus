@@ -1,0 +1,46 @@
+#NEXUS
+
+[!This data set was downloaded from TreeBASE, a relational database of phylogenetic knowledge. TreeBASE has been supported by the NSF, Harvard University, Yale University, SDSC and UC Davis. Please do not remove this acknowledgment from the Nexus file.
+
+
+Generated on March 10, 2023; 6:47 GMT
+
+TreeBASE (cc) 1994-2008
+
+Study reference:
+Kropp B., & Matheny P.B. 2003. Basidiospore homoplasy and variation in the Inocybe
+chelanensis group in North America. Mycologia, null.
+
+TreeBASE Study URI:  http://purl.org/phylo/treebase/phylows/study/TB2:S1026]
+
+BEGIN TAXA;
+        TITLE  'RPB1 nLSU-rDNA';
+        DIMENSIONS NTAX=16;
+        TAXLABELS
+            Inocybe_ayangannae
+            Inocybe_calospora
+            Inocybe_candidipes
+            Inocybe_chelanensis_PBM2314WA
+            Inocybe_chelanensis_PBM491CA
+            Inocybe_curvipes
+            Inocybe_glabrodisca
+            Inocybe_lacera
+            Inocybe_lanuginosa
+            Inocybe_leptophylla
+            Inocybe_napipes
+            Inocybe_praetervisa
+            Inocybe_relicina
+            Inocybe_sierraensis
+            Inocybe_stellatospora
+            Inocybe_teraturgus
+            ;
+END;
+
+BEGIN TREES;
+      TITLE Tb6566;
+      LINK TAXA = 'RPB1 nLSU-rDNA';
+      TREE PAUP_1 = [&R] (Inocybe_candidipes,(((((Inocybe_lanuginosa,Inocybe_teraturgus),Inocybe_leptophylla),(Inocybe_calospora,Inocybe_praetervisa)),((Inocybe_stellatospora,((Inocybe_chelanensis_PBM491CA,Inocybe_chelanensis_PBM2314WA),Inocybe_sierraensis)),((Inocybe_napipes,Inocybe_ayangannae),((Inocybe_curvipes,Inocybe_lacera),Inocybe_relicina)))),Inocybe_glabrodisca));
+[!  TreeBASE tree URI: http://purl.org/phylo/treebase/phylows/tree/TB2:Tr1234]
+
+
+END;
