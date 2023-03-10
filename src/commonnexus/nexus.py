@@ -269,6 +269,22 @@ class Nexus(list):
             valid = valid and block.validate(log=log)
         return valid
 
+    def get_numbers(self, object_name, items):
+        """
+        Determine object numbers suitable for inclusion in a set spec.
+        """
+        if object_name == 'TAXON':
+            return [str(i + 1) for i, tax in enumerate(self.taxa)
+                    if (tax in items) or (str(i + 1) in items)]
+        if object_name == 'CHARACTER':
+            charlabels, statelabels = self.characters.get_charstatelabels()
+            return [str(i) for i, label in charlabels.items()
+                    if (label in items) or (str(i) in items)]
+        if object_name == 'TREE':
+            return [str(i + 1) for i, tree in enumerate(self.TREES.trees)
+                    if (tree.name in items) or (str(i + 1) in items)]
+        raise NotImplementedError(object_name)  # pragma: no cover
+
     def resolve_set_spec(self, object_name, spec, chars=None):
         """
         Resolve a set spec to a list of included items, specified by label or number.

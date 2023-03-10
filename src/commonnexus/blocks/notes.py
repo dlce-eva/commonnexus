@@ -1,5 +1,7 @@
+import typing
+
 from .base import Block, Payload
-from commonnexus.tokenizer import iter_key_value_pairs
+from commonnexus.tokenizer import iter_key_value_pairs, Word
 
 
 class Text(Payload):
@@ -32,7 +34,7 @@ class Text(Payload):
 
     :ivar typing.List[str] taxons: list of taxon labels or numbers the text relates to.
     """
-    def __init__(self, tokens, nexus=None):
+    def __init__(self, tokens=None, nexus=None, **kw):
         super().__init__(tokens, nexus=nexus)
         self.taxons = None
         self.characters = None
@@ -41,24 +43,53 @@ class Text(Payload):
         self.source = None
         self.text = None
 
-        for key, values in iter_key_value_pairs(self._tokens):
-            key = key.lower()
-            if key in ['taxon', 'character', 'state', 'tree']:
-                key = key + 's'
-            else:
-                assert len(values) == 1
-                values = values[0]
-            setattr(self, key.lower(), values)
-        if self.nexus:
-            for key in ['taxon', 'character', 'state', 'tree']:
-                key = key + 's'
-                if getattr(self, key):
-                    kw = {}
-                    if key == 'states':
-                        kw['chars'] = self.characters
-                    setattr(self, key, self.nexus.resolve_set_spec(
-                        key[:-1].upper(), getattr(self, key), **kw))
-        assert self.source in [None, 'FILE', 'INLINE'], self.source
+        if self._tokens is None:
+            for k, v in kw.items():
+                setattr(self, k, v)
+        else:
+            for key, values in iter_key_value_pairs(self._tokens):
+                key = key.lower()
+                if key in ['taxon', 'character', 'state', 'tree']:
+                    key = key + 's'
+                else:
+                    assert len(values) == 1
+                    values = values[0]
+                setattr(self, key.lower(), values)
+            if self.nexus:
+                for key in ['taxon', 'character', 'state', 'tree']:
+                    key = key + 's'
+                    if getattr(self, key):
+                        kw = {}
+                        if key == 'states':
+                            kw['chars'] = self.characters
+                        setattr(self, key, self.nexus.resolve_set_spec(
+                            key[:-1].upper(), getattr(self, key), **kw))
+            assert self.source in [None, 'FILE', 'INLINE'], self.source
+
+    def as_payload(self):
+        res = []
+        if self.taxons:
+            numbers = ' '.join(
+                self.nexus.get_numbers('TAXON', self.taxons) if self.nexus else self.taxons)
+            res.append("TAXON={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
+
+        if self.characters:
+            numbers = ' '.join(self.nexus.get_numbers('CHARACTER', self.characters)
+                               if self.nexus else self.characters)
+            res.append("CHARACTER={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
+
+        #
+        # FIXME: support STATE!
+        #
+
+        if self.trees:
+            numbers = ' '.join(
+                self.nexus.get_numbers('TREE', self.trees) if self.nexus else self.trees)
+            res.append("TREE={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
+
+        res.append('SOURCE=INLINE')
+        res.append('TEXT={}'.format(Word(self.text).as_nexus_string()))
+        return ' '.join(res)
 
 
 class Picture(Payload):
@@ -141,6 +172,17 @@ class Notes(Block):
         PICTURE and ``SOURCE=RESOURCE`` for TEXT is not supported by `commonnexus`.
     """
     __commands__ = {Text, Picture}
+
+    @classmethod
+    def from_data(cls,
+                  texts: typing.List[typing.Dict[str, typing.Union[typing.List[str], str]]],
+                  TITLE: typing.Optional[str] = None,
+                  ID: typing.Optional[str] = None,
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+                  **kw) -> 'Block':
+        nexus = kw.pop('nexus', None)
+        cmds = [('TEXT', Text(nexus=nexus, **text).as_payload()) for text in texts]
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
 
     @property
     def texts(self):

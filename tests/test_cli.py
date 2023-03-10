@@ -84,6 +84,10 @@ def test_taxa(main, mainnexus, capsys, fixture_dir, tmp_path, caplog):
     out = mainnexus('taxa --rename A,X {}'.format(fixture_dir / 'christophchamp_basic.nex'))
     assert out.taxa == ['X', 'B', 'C', 'D']
 
+    out = mainnexus('taxa --rename "lambda l: chr(ord(l) + 4)" {}'.format(
+        fixture_dir / 'christophchamp_basic.nex'))
+    assert out.taxa == ['E', 'F', 'G', 'H']
+
     nex = tmp_path.joinpath('test.nex')
     nex.write_text(str(out), encoding='utf8')
     main('taxa --check {}'.format(str(nex)))

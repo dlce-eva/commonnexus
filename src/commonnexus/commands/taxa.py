@@ -19,8 +19,7 @@ def register(parser):
     parser.add_argument(
         '--rename',
         help="Rename a taxon specified as 'old,new' where 'old' is the current name or number and "
-             "'new' is the new name.",
-        type=lambda s: s.split(','),
+             "'new' is the new name or as Python lambda function accepting a taxon label as input.",
         default=None)
     add_flag(parser, 'check', 'Check whether taxa labels in a NEXUS file are used consistently.')
 
@@ -70,45 +69,57 @@ def run(args):
 
                 args.nexus.replace_block(args.nexus.DISTANCES, Distances.from_data(matrix))
 
+            if args.nexus.NOTES:  # pragma: no cover
+                args.log.warning('Changing taxon sets in NOTES block is not supported.')
+
             if args.nexus.TAXA:
                 args.nexus.replace_block(args.nexus.TAXA, Taxa.from_data(to_keep))
             else:
                 args.nexus.append_block(Taxa.from_data(to_keep))
 
         if args.rename:
-            assert len(args.rename) == 2
-            old, new = args.rename
-            for number, label in taxa.items():
-                if old == number or old == label:
-                    break
+            mapping = {}
+            if args.rename.startswith('lambda'):
+                f = eval(args.rename)
+                for number, label in taxa.items():
+                    new = f(label)
+                    if new != label:
+                        taxa[number] = mapping[number] = mapping[label] = new
             else:
-                raise ParserError('No taxon matching {} found'.format(old))  # pragma: no cover
+                old, _, new = args.rename.partition(',')
+                for number, label in taxa.items():
+                    if old == number or old == label:
+                        taxa[number] = mapping[number] = mapping[old] = new
+                        break
+                else:
+                    raise ParserError('No taxon matching {} found'.format(old))  # pragma: no cover
 
-            taxa[number] = new
             if args.nexus.characters:
                 matrix = args.nexus.characters.get_matrix()
-                if number in matrix or label in matrix:
-                    matrix = collections.OrderedDict([
-                        (new if k == number or k == label else k, v) for k, v in matrix.items()])
+                if set(matrix).intersection(mapping):
+                    matrix = collections.OrderedDict(
+                        [(mapping.get(k, k), v) for k, v in matrix.items()])
                     args.nexus.replace_block(args.nexus.characters, Characters.from_data(matrix))
             if args.nexus.DISTANCES:
                 matrix = collections.OrderedDict()
                 for tax, dists in args.nexus.DISTANCES.get_matrix().items():
-                    matrix[new if tax == number or tax == label else tax] = \
-                        collections.OrderedDict([
-                            (new if k == number or k == label else k, v) for k, v in dists.items()])
+                    matrix[mapping.get(tax, tax)] = collections.OrderedDict([
+                        (mapping.get(k, k), v) for k, v in dists.items()])
                 args.nexus.replace_block(args.nexus.DISTANCES, Distances.from_data(matrix))
             if args.nexus.TREES:
                 labels = {}
                 if args.nexus.TREES.TRANSLATE:
-                    labels = collections.OrderedDict(
-                        [(k, new if v == number or v == label else v)
-                         for k, v in args.nexus.TREES.TRANSLATE.mapping.items()])
+                    labels = collections.OrderedDict([
+                        (k, mapping.get(v, v))
+                        for k, v in args.nexus.TREES.TRANSLATE.mapping.items()])
                 trees = []
                 for tree in args.nexus.TREES.trees:
-                    trees.append((
-                        tree.name, tree.newick.rename(**{number: new, label: new}), tree.rooted))
+                    trees.append((tree.name, tree.newick.rename(**mapping), tree.rooted))
                 args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees, **labels))
+
+            if args.nexus.NOTES:  # pragma: no cover
+                args.log.warning('Changing taxon sets in NOTES block is not supported.')
+
             if args.nexus.TAXA:
                 args.nexus.replace_block(args.nexus.TAXA, Taxa.from_data(taxa.values()))
             else:
