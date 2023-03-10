@@ -851,8 +851,9 @@ class Characters(Block):
                             w = next(words)
                             vals = set()
                             while isinstance(w, str) or (w.text in format.symbols) \
-                                    or (w.text == format.gap):
-                                vals |= set(w if isinstance(w, str) else w.text)
+                                    or (w.text == format.gap) or (w.text == ","):
+                                if isinstance(w, str) or w.text != ',':
+                                    vals |= set(getattr(w, 'text', w))
                                 w = next(words)
                             assert w.text == '}', "Expected }"
                             entries.append(vals)

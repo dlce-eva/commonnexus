@@ -107,8 +107,8 @@ MATRIX
         ),
         (  # comma-separated polymorphic states.
             None,
-           'dimensions nchar=3; matrix t1 (1,0)01 t2 010;',
-            lambda m: m['t1']['1'] == ('1', '0'),
+           'dimensions nchar=3; matrix t1 (1,0)01 t2 {0,1}10;',
+            lambda m: m['t1']['1'] == ('1', '0') and m['t2']['1'] == {'1', '0'},
         ),
     ]
 )

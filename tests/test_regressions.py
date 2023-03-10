@@ -31,6 +31,11 @@ def test_Morphobank(regression):
         Characters.from_data(m, statelabels=nex.characters.get_charstatelabels()[1]))
     assert nex.characters.get_matrix(labeled_states=True) == matrix
 
+    nex = Nexus.from_file(regression / 'mbank_X29171_3-10-2023_150.nex')
+    m = nex.characters.get_matrix(labeled_states=True)
+    assert m['Proterosuchus fergusi']['Skull and lower jaws, interdental plates'] == \
+           ('absent', 'present, small and well-spaced from each other')
+
 
 def test_WhitespaceInMatrix_regression(regression):
     """Regression: Test that leading whitespace in a data matrix is parsed ok"""
