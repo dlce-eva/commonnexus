@@ -838,13 +838,15 @@ class Characters(Block):
                         continue
                     if isinstance(t, Token):
                         if t.text == '(':
+                            w = next(words)
                             symbols = ''
-                            word = next(words)
-                            while isinstance(word, str):
-                                symbols += word
-                                word = next(words)
+                            while isinstance(w, str) or (w.text in format.symbols) \
+                                    or (w.text == ","):
+                                if isinstance(w, str) or w.text != ',':
+                                    symbols += getattr(w, 'text', w)
+                                w = next(words)
+                            assert w.text == ')', "Expected )"
                             entries.append(tuple(symbols))
-                            assert word.text == ')'
                         elif t.text == '{':
                             w = next(words)
                             vals = set()

@@ -104,7 +104,12 @@ MATRIX
             None,
             'dimensions nchar=3; matrix *T 101 OtherT 010;',
             lambda m: '*T' in m,
-        )
+        ),
+        (  # comma-separated polymorphic states.
+            None,
+           'dimensions nchar=3; matrix t1 (1,0)01 t2 010;',
+            lambda m: m['t1']['1'] == ('1', '0'),
+        ),
     ]
 )
 def test_Characters_get_matrix(characters, taxa, expect):
