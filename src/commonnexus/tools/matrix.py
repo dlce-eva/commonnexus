@@ -86,27 +86,35 @@ class CharacterMatrix(collections.OrderedDict):
         return self.symbols.issubset({'0', '1'}) and not self.has_gaps
 
     @classmethod
-    def binarised(cls, matrix: StateMatrix) -> 'CharacterMatrix':
+    def binarised(cls,
+                  matrix: StateMatrix,
+                  statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None) \
+            -> 'CharacterMatrix':
+        statelabels = statelabels or {}
         matrix = cls(matrix)
         charstates = collections.defaultdict(set)
         for i, col in enumerate(matrix.iter_columns()):
-            charstates[matrix.characters[i]] = set(
-                frozenset(v) if isinstance(v, set) else v for v in col
-                if v is not None and v != GAP)
+            for v in col:
+                if v is not None and v != GAP:
+                    charstates[matrix.characters[i]] |= set(v)
         charstates = {k: sorted(v, key=lambda vv: str(vv)) for k, v in charstates.items()}
         new = collections.OrderedDict()
 
         for taxon, row in matrix.items():
             new[taxon] = collections.OrderedDict()
             for char, value in row.items():
+                #
+                # FIXME: don't binarise what's already binary!
+                #
                 for i, state in enumerate(charstates[char], start=1):
                     if value is None:
                         v = None
                     elif value == GAP:
                         v = GAP
                     else:
-                        v = '1' if state == value else '0'
-                    new[taxon]['{}_{}'.format(char, i)] = v
+                        v = ({'1'} if isinstance(value, set) else '1') if state in value else '0'
+                    statelabel = statelabels.get(char, {}).get(state) or state
+                    new[taxon]['{}_{}'.format(char, statelabel)] = v
         return cls(new)
 
     @classmethod

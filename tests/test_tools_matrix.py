@@ -117,7 +117,24 @@ def test_CharMatrix_binarise(nexus):
         1 char1, 2 char2, 3 char3;
     Matrix x23 4-5 67? ;""").characters.get_matrix())
     assert matrix['Maori'] == {
-        'char1_1': '1', 'char1_2': '0', 'char1_3': '0',
-        'char2_1': '1', 'char2_2': '0',
-        'char3_1': '1', 'char3_2': '0',
+        'char1_1': '1', 'char1_2': '1', 'char1_3': '0',
+        'char2_4': '1', 'char2_5': '0',
+        'char3_6': '1', 'char3_7': '0',
     }
+
+
+@pytest.mark.parametrize(
+    'matrix,rows',
+    [
+        ('t1 A t2 B t3 C', (['1', '0', '0'], ['0', '1', '0'], ['0', '0', '1'])),
+        ('t1 (AB) t2 B', (['1', '1'], ['0', '1'])),
+        ('t1 {AB} t2 B', ([{'1'}, {'1'}], ['0', '1'])),
+    ]
+)
+def test_binarise(nexus, matrix, rows):
+    nex = nexus(
+        CHARACTERS='DIMENSIONS nchar=1; FORMAT datatype=standard symbols="ABC"; MATRIX {};'.format(
+            matrix))
+    bin = CharacterMatrix.binarised(nex.characters.get_matrix())
+    for row, expected in zip(bin.iter_rows(), rows):
+        assert row == expected

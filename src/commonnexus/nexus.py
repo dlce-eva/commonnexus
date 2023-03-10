@@ -112,7 +112,8 @@ class Nexus(list):
             for token in itertools.dropwhile(
                     lambda t: t.type == TokenType.WHITESPACE, iter_tokens(s)):
                 if not nexus:
-                    assert token.type == TokenType.WORD and token.text.upper() == NEXUS
+                    assert token.type == TokenType.WORD and token.text.upper() == NEXUS, \
+                        "No #NEXUS token found."
                     nexus = True
                 else:
                     tokens.append(token)

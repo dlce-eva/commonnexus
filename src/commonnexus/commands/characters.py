@@ -58,11 +58,11 @@ def run(args):
     validate_operations(Ops, args)
     new = None
     if args.binarise:
-        if args.nexus.characters:
-            if args.nexus.characters.FORMAT:  # pragma: no cover
-                assert args.nexus.characters.FORMAT.datatype is None or \
-                       args.nexus.characters.FORMAT.datatype == 'STANDARD'
-        new = CharacterMatrix.binarised(args.nexus.characters.get_matrix())
+        if args.nexus.characters.FORMAT:  # pragma: no cover
+            assert args.nexus.characters.FORMAT.datatype is None or \
+                args.nexus.characters.FORMAT.datatype == 'STANDARD'
+        _, statelabels = args.nexus.characters.get_charstatelabels()
+        new = CharacterMatrix.binarised(args.nexus.characters.get_matrix(), statelabels=statelabels)
     elif args.multistatise:
         if args.multistatise.startswith('lambda'):
             groupkey = eval(args.multistatise)

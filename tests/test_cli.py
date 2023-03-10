@@ -163,6 +163,13 @@ def test_characters(mainnexus, inchar, matrix, op, args, outchar):
     assert res.characters.DIMENSIONS.nchar == outchar
 
 
+def test_characters_binarise(mainnexus, fixture_dir):
+    """Make sure state labels are used to create charlabels of binarised characters."""
+    res = mainnexus('characters --binarise {}'.format(
+        fixture_dir / 'regression' / 'mbank_X962_11-22-2013_1534.nex'))
+    assert "'Spine of urohyal shape_fused to form single spine'" in str(res)
+
+
 @pytest.mark.parametrize(
     'inchar,matrix,what,nlines',
     [
