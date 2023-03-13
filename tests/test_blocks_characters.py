@@ -244,3 +244,8 @@ def test_Characters_validate(nexus):
     nex = nexus(CHARACTERS="DIMENSIONS NCHAR=1; TAXLABELS t1; MATRIX t1 1;")
     with pytest.raises(ValueError):
         nex.CHARACTERS.validate()
+
+
+def test_Data_with_Options(nexus):
+    nex = nexus(DATA="DIMENSIONS NCHAR=1; OPTIONS GAPMODE=missing; MATRIX t1 1;")
+    assert nex.characters.OPTIONS.gapmode == 'missing'

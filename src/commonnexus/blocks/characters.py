@@ -1136,6 +1136,29 @@ class Characters(Block):
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
 
 
+class Options(Payload):
+    """
+    The GAPMODE subcommand of the OPTIONS command of the ASSUMPTIONS block was originally
+    housed in an OPTIONS command in the DATA block.
+
+    :ivar typing.Optional[str] gapmode: `missing` or `newstate`.
+    """
+    def __init__(self, tokens, nexus=None):
+        super().__init__(tokens, nexus=nexus)
+        self.gapmode = None
+
+        words = iter_words_and_punctuation(self._tokens, nexus=nexus)
+
+        while 1:
+            try:
+                word = next(words)
+                if isinstance(word, str) and word.upper() == 'GAPMODE':
+                    self.gapmode = word_after_equals(words).lower()
+            except StopIteration:
+                break
+        assert self.gapmode in {None, 'missing', 'newstate'}
+
+
 class Data(Characters):
     """
     This block is equivalent to a CHARACTERS block in which the NEWTAXA subcommand is included in
@@ -1145,6 +1168,8 @@ class Data(Characters):
     .. note::
 
         The GAPMODE subcommand of the OPTIONS command of the ASSUMPTIONS block was originally
-        housed in an OPTIONS command in the DATA block.
+        housed in an :class:`OPTIONS <Options>` command in the DATA block.
     """
-    pass
+    __commands__ = [
+        Dimensions, Format, Options,
+        Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
