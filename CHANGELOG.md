@@ -1,5 +1,8 @@
 # Changes
 
+## [Unreleased]
+
+
 ## [v1.1.0] - 2023-03-13
 
 - Fixed bug where the Nexus.cfg was not consulted when reading CHARACTERS MATRIX.
