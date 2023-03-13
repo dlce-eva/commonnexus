@@ -74,10 +74,11 @@ def test_combine(main, capsys, fixture_dir):
     assert out.strip() == '#NEXUS'
 
 
-def test_taxa(main, mainnexus, capsys, fixture_dir, tmp_path, caplog):
+def test_taxa(main, mainnexus, capsys, fixture_dir, tmp_path, caplog, morphobank):
     main('taxa {}'.format(fixture_dir / 'christophchamp_basic.nex'))
     out, _ = capsys.readouterr()
     assert len([l for l in out.split('\n') if l.strip()]) == 4
+
     out = mainnexus('taxa --drop A {}'.format(fixture_dir / 'christophchamp_basic.nex'))
     assert out.taxa == ['B', 'C', 'D']
 
@@ -125,6 +126,10 @@ end;""", encoding='utf8')
     assert 'X' in out.taxa
     out = mainnexus('taxa --drop A "#nexus begin distances; matrix A 0 B 1 0 C 2 1 0; end;"')
     assert list(out.DISTANCES.get_matrix()) == ['B', 'C']
+
+    main('taxa --describe 1 {}'.format(morphobank))
+    out, _ = capsys.readouterr()
+    assert 'Waldman' in out
 
 
 def test_taxa_check(main, caplog, tmp_path):
@@ -177,10 +182,9 @@ def test_characters(mainnexus, inchar, matrix, op, args, outchar):
     assert res.characters.DIMENSIONS.nchar == outchar
 
 
-def test_characters_binarise(mainnexus, fixture_dir):
+def test_characters_binarise(mainnexus, morphobank):
     """Make sure state labels are used to create charlabels of binarised characters."""
-    res = mainnexus('characters --binarise {}'.format(
-        fixture_dir / 'regression' / 'mbank_X962_11-22-2013_1534.nex'))
+    res = mainnexus('characters --binarise {}'.format(morphobank))
     assert "'Spine of urohyal shape_fused to form single spine'" in str(res)
 
 

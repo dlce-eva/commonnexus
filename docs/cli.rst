@@ -80,7 +80,8 @@ The `characters` sub-command provides functionality to manipulate the characters
 
 
 #
-# FIXME: multistatise example!
+# FIXME: multistatise example! and batch rename example, and binarise with Morphobank data?
+# https://github.com/phlorest/birchall_et_al2016/blob/main/raw/Chapacuran_Swadesh207-2019-labelled.nex
 #
 
 **Describing character set sizes:**

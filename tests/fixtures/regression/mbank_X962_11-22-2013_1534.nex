@@ -503,6 +503,7 @@ BEGIN NOTES;
 	TEXT CHARACTER=72 TEXT='modified from Otero, 2004';
 	TEXT CHARACTER=74 TEXT='McCully, 1963';
 	TEXT CHARACTER=75 TEXT='McCully, 1962';
+	TEXT TAXON=1 TEXT='test';
 
 	[Attribute comments]
 ENDBLOCK;

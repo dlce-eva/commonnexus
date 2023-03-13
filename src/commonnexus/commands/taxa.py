@@ -5,6 +5,7 @@ import collections
 
 from commonnexus.cli_util import add_nexus, add_flag, ParserError
 from commonnexus.blocks import Data, Characters, Trees, Taxa, Distances
+from commonnexus.blocks.characters import GAP
 
 
 def register(parser):
@@ -20,6 +21,10 @@ def register(parser):
         '--rename',
         help="Rename a taxon specified as 'old,new' where 'old' is the current name or number and "
              "'new' is the new name or as Python lambda function accepting a taxon label as input.",
+        default=None)
+    parser.add_argument(
+        '--describe',
+        help="Describe a named taxon, i.e. aggregate the data for the taxon in a NEXUS file.",
         default=None)
     add_flag(parser, 'check', 'Check whether taxa labels in a NEXUS file are used consistently.')
 
@@ -149,6 +154,41 @@ def run(args):
                 names = {n.name for n in nwk.walk() if n.name and not n.is_leaf}
                 if not names.issubset(taxa.values()):
                     args.log.warning('Invalid taxa labels as inner node name in TREE.')
+        return
+
+    if args.describe:
+        for num, name in taxa.items():
+            if args.describe in (num, name):
+                break
+        else:
+            raise ValueError('Taxon not found')  # pragma: no cover
+        print('# {}\n'.format(name))
+        charnotes = collections.defaultdict(list)
+        if args.nexus.NOTES:
+            for text in args.nexus.NOTES.texts:
+                for char in text.characters or []:
+                    charnotes[char].append(text.text)
+        if args.nexus.characters:
+            m = args.nexus.characters.get_matrix(labeled_states=True)
+            print('Character | State | Notes')
+            print('--- | --- | ---')
+            for char, state in m[name].items():
+                notes = '/'.join(charnotes.get(char, []))
+                print('{} | {} | {}'.format(
+                    char, '?' if state is None else ('-' if state == GAP else state), notes))
+        if args.nexus.TREES:
+            print('\n## Tree {}\n'.format(args.nexus.TREES.TREE.name))
+            tree = args.nexus.TREES.translate(args.nexus.TREES.TREE)
+            print('```')
+            print(tree.ascii_art())
+            print('```')
+        if args.nexus.NOTES:
+            for i, text in enumerate(args.nexus.NOTES.get_texts(taxon=name)):
+                if i == 0:
+                    print('\n## Notes\n')
+                    print('Character | Note')
+                    print('--- | ---')
+                print('{} | {}'.format('/'.join(text.characters or []), text.text.strip()))
         return
 
     args.log.info('Taxa:\nnumber\tlabel')

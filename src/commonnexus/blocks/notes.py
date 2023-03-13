@@ -191,8 +191,8 @@ class Notes(Block):
     def get_texts(self, taxon=None, character=None, tree=None):
         res = []
         for text in self.texts:
-            if (taxon and taxon in text.taxons) or \
-                    (character and character in text.characters) or \
-                    (tree and tree in text.trees):
+            if (taxon and text.taxons and taxon in text.taxons) or \
+                    (character and text.characters and character in text.characters) or \
+                    (tree and text.trees and tree in text.trees):
                 res.append(text)
         return res

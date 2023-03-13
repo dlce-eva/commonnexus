@@ -12,6 +12,11 @@ def fixture_dir():
 
 
 @pytest.fixture
+def morphobank(fixture_dir):
+    return fixture_dir / 'regression' / 'mbank_X962_11-22-2013_1534.nex'
+
+
+@pytest.fixture
 def nexus():
     def make_one(**blocks):
         cfg = blocks.pop('config', None)

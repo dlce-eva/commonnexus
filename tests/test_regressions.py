@@ -11,14 +11,10 @@ from commonnexus.blocks import Characters
 def regression(fixture_dir):
     return fixture_dir / 'regression'
 
-#
-# $ curl "https://www.treebase.org/treebase-web/search/downloadAMatrix.html?id=1006&matrixid=123"
-#
 
-
-def test_Morphobank(regression):
-    nex = Nexus.from_file(regression / 'mbank_X962_11-22-2013_1534.nex')
-    assert len(nex.NOTES.texts) == 29
+def test_Morphobank(morphobank, regression):
+    nex = Nexus.from_file(morphobank)
+    assert len(nex.NOTES.texts) == 30
     notes = nex.NOTES.get_texts(character='Lateral ethmoid-lacrimal articulation, orientation')
     assert len(notes) == 1
     assert notes[0].text == 'Waldman, 1986'
