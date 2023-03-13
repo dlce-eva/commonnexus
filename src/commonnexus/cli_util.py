@@ -85,6 +85,16 @@ def add_flag(parser, name, help):
     parser.add_argument('--{}'.format(name), action='store_true', default=False, help=help)
 
 
+def add_rename(parser, what):
+    parser.add_argument(
+        '--rename',
+        help="Rename a {0} specified as 'old,new' where 'old' is the current name or number and "
+             "'new' is the new name or as Python lambda function accepting a {0} label as input."
+             "".format(what),
+        type=lambda s: eval(s) if s.startswith('lambda') else tuple(s.split(',', maxsplit=1)),
+        default=None)
+
+
 def list_of_ranges(dstring) -> typing.List[int]:
     """
     Converts a comma-separated list of 1-based ranges into a list of 1-based indices.

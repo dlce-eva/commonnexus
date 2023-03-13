@@ -3,7 +3,7 @@ Manipulate the list of TAXA used in a NEXUS file.
 """
 import collections
 
-from commonnexus.cli_util import add_nexus, add_flag, ParserError
+from commonnexus.cli_util import add_nexus, add_flag, ParserError, add_rename
 from commonnexus.blocks import Data, Characters, Trees, Taxa, Distances
 from commonnexus.blocks.characters import GAP
 
@@ -17,11 +17,7 @@ def register(parser):
              "matrix, and prune the specified taxa from any TREE in a TREES block.",
         type=lambda s: s.split(','),
         default=[])
-    parser.add_argument(
-        '--rename',
-        help="Rename a taxon specified as 'old,new' where 'old' is the current name or number and "
-             "'new' is the new name or as Python lambda function accepting a taxon label as input.",
-        default=None)
+    add_rename(parser, 'taxon')
     parser.add_argument(
         '--describe',
         help="Describe a named taxon, i.e. aggregate the data for the taxon in a NEXUS file.",
@@ -84,14 +80,13 @@ def run(args):
 
         if args.rename:
             mapping = {}
-            if args.rename.startswith('lambda'):
-                f = eval(args.rename)
+            if callable(args.rename):
                 for number, label in taxa.items():
-                    new = f(label)
+                    new = args.rename(label)
                     if new != label:
                         taxa[number] = mapping[number] = mapping[label] = new
             else:
-                old, _, new = args.rename.partition(',')
+                old, new = args.rename
                 for number, label in taxa.items():
                     if old == number or old == label:
                         taxa[number] = mapping[number] = mapping[old] = new

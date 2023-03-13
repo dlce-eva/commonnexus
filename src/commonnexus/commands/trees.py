@@ -7,7 +7,9 @@ import enum
 import random
 
 from commonnexus.blocks import Trees
-from commonnexus.cli_util import add_nexus, add_flag, list_of_ranges, validate_operations
+from commonnexus.cli_util import (
+    add_nexus, add_flag, list_of_ranges, validate_operations, add_rename,
+)
 
 
 class Ops(enum.Enum):
@@ -15,6 +17,7 @@ class Ops(enum.Enum):
     sample = 2
     random = 3
     strip_comments = 4
+    rename = 5
 
 
 def register(parser):
@@ -46,6 +49,7 @@ def register(parser):
         action="store_true",
         default=False,
         help="Remove comments from the trees")
+    add_rename(parser, 'tree')
     add_flag(parser, 'describe', 'list 1-based index, names and rooting of trees')
 
 
@@ -75,6 +79,17 @@ def run(args):
         trees = []
         for tree in args.nexus.TREES.trees:
             trees.append((tree.name, tree.newick.strip_comments(), tree.rooted))
+        labels = args.nexus.TREES.TRANSLATE.mapping if args.nexus.TREES.TRANSLATE else {}
+        args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees, **labels))
+    elif args.rename:
+        trees = []
+        for number, tree in enumerate(args.nexus.TREES.trees, start=1):
+            tname = tree.name
+            if callable(args.rename):
+                tname = args.rename(tree.name)
+            elif args.rename[0] == str(number) or args.rename[0] == tree.name:
+                tname = args.rename[1]
+            trees.append((tname, tree.newick, tree.rooted))
         labels = args.nexus.TREES.TRANSLATE.mapping if args.nexus.TREES.TRANSLATE else {}
         args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees, **labels))
 

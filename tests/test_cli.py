@@ -247,3 +247,13 @@ def test_trees_describe(main, capsys):
     main('trees --describe "#nexus begin trees; tree the_tree = (a[c],b); end;"')
     out, _ = capsys.readouterr()
     assert 'the_tree' in out
+
+
+def test_trees_rename(main, capsys):
+    main('trees --rename x,y "#nexus begin trees; tree x = (a[c],b); end;"')
+    out, _ = capsys.readouterr()
+    assert 'y' in out
+
+    main("""trees --rename "lambda x: '{}1'.format(x[0])" "#nexus begin trees; translate a x, b y, c z; tree xy = (a[c],b); end;" """)
+    out, _ = capsys.readouterr()
+    assert 'x1' in out

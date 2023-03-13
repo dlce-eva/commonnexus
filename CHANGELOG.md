@@ -9,6 +9,7 @@
 - CLI: Support batch-renaming taxa via lambda function.
 - CLI: Added `split` command to split Mesquite's multi-block NEXUS.
 - CLI: Added `taxa --describe` option, which is particularly useful with Morphobank NEXUS.
+- CLI: Added `trees --rename` option.
 - CLI Backwards incompatibility: `characters --multistatise` now requires an argument for
   the `--multistatise` option.
 
