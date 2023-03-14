@@ -78,3 +78,10 @@ END;"""
 def test_Trees_validate(nexus, trees):
     with pytest.raises(ValueError):
         _ = nexus(TREES=trees).validate()
+
+
+def test_Tree_newick_string(nexus):
+    nex = nexus(TREES="TREE x = (a, b, c)d;")
+    trees = nex.TREES
+    assert trees.TREE.newick_string == '(a, b, c)d;'
+    assert {n.name for n in trees.TREE.newick.walk()} == set('abcd')

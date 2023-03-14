@@ -5,8 +5,11 @@ import collections
 import newick
 
 from .base import Payload, Block
+from commonnexus._compat import cached_property
 from commonnexus.util import log_or_raise
-from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word
+from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token
+
+TreeSpec = typing.Tuple[str, typing.Union[str, newick.Node], typing.Union[None, bool]]
 
 
 class Translate(Payload):
@@ -171,8 +174,8 @@ class Tree(Payload):
             if t.type == TokenType.PUNCTUATION and t.text == '(':
                 nwk = True
         assert nwk
-        self._remaining_tokens = tokens
-        self._ns = None
+        # Since Newick node construction is somewhat expensive, we defer it to lazy properties.
+        self.newick_tokens = [Token(text='(', type=TokenType.PUNCTUATION)] + [t for t in tokens]
         self._nn = None
 
     @staticmethod
@@ -189,27 +192,64 @@ class Tree(Payload):
             newick_node.newick)
 
     @property
-    def rooted(self):
+    def rooted(self) -> typing.Union[None, bool]:
+        """
+        Whether the tree is rooted (`True`) or not (`False`) or no information is given (`None`).
+        """
         if self._rooted:
             return self._rooted == '&R'
 
-    @property
-    def newick(self):
-        if not self._nn:
-            self._nn = self._parse_newick()
-        return self._nn
+    @cached_property
+    def newick_string(self) -> str:
+        """
+        The Newick-formatted string representation of the tree.
 
-    def _parse_newick(self):
-        # Read newick string and `newick.Node` object lazily.
+        .. note::
+
+            This property is intended for cases where only the string representation is of interest
+            and the somewhat expensive construction of a `newick.Node` object is not necessary.
+            Accessing the :meth:`Tree.newick` property will trigger node construction.
+
+        .. warning::
+
+            Due to some normalization (e.g. of whitespace) done by the Newick parser,
+            `newick_string` may differ from `newick.newick`.
+
+            .. code-block:: python
+
+                >>> from commonnexus import Nexus
+                >>> nex = Nexus('#nexus begin trees; tree 1 = (a,b)\\nc; end;')
+                >>> nex.TREES.TREE.newick_string
+                '(a,b)\\nc;'
+                >>> nex.TREES.TREE.newick.newick
+                '(a,b)c'
+        """
+        return ''.join(str(t) for t in self.newick_tokens) + ';'
+
+    @cached_property
+    def newick(self) -> newick.Node:
+        """
+        A `newick.Node` instance parsed from the Newick representation of the tree.
+
+        .. code-block:: python
+
+            >>> from commonnexus import Nexus
+            >>> nex = Nexus('#nexus begin trees; tree 1 = ((a,b)c,d)e; end;')
+            >>> print(nex.TREES.TREE.newick.ascii_art())
+                    ┌─a
+                ┌─c─┤
+            ──e─┤   └─b
+                └─d
+        """
         if self.nexus and self.nexus.cfg.validate_newick:
             # More correct, but slower: Let the newick parser validate the data.
-            return newick.loads('(' + ''.join(str(t) for t in self._remaining_tokens))[0]
+            return newick.loads(self.newick_string)[0]
         # Quicker but by-passes some validation: Instantiate NewickString from pre-parsed Nexus
         # tokens!
         nt = [newick.Token('(', newick.TokenType.OBRACE, 0)]
         word, level = [], 1
 
-        for token in self._remaining_tokens:
+        for token in self.newick_tokens[1:]:
             # now we assemble newick string and newick tokens in one go.
             if token.type == TokenType.WORD:
                 word.append(token.text)
@@ -327,8 +367,14 @@ class Trees(Block):
 
     @classmethod
     def from_data(cls,
-                  *tree_specs,
-                  **translate_labels) -> 'Trees':
+                  *tree_specs: typing.Iterable[TreeSpec],
+                  **translate_labels: typing.Dict[str, str]) -> 'Trees':
+        """
+        Create a TREES block from a list of tree specifications.
+
+        If `translate_labels` are passed in, a corresponding TRANSLATE command will be added to the
+        block and the trees will be "de-translated" accordingly.
+        """
         TITLE = translate_labels.pop('TITLE', None)
         LINK = translate_labels.pop('LINK', None)
         ID = translate_labels.pop('ID', None)
