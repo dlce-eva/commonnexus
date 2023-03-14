@@ -25,7 +25,10 @@ pip install commonnexus
 
 ## Overview
 
-Read NEXUS:
+`commonnexus` provides a [Python API](#python-api) as well as a [shell command](#command-line-usage)
+to manipulate (the data in) NEXUS files.
+
+In particular, it allows reading NEXUS
 
 ```python
 >>> from commonnexus import Nexus
@@ -34,7 +37,7 @@ Read NEXUS:
 odict_values(['1', '0', '0', '1', '0', '1', '0', '0', '0', '0'])
 ```
 
-Write NEXUS:
+and writing NEXUS
 
 ```python
 >>> from commonnexus import Nexus
@@ -65,6 +68,13 @@ with examples [on ReadTheDocs](https://commonnexus.readthedocs.io/en/latest/cli.
 
 
 ## Python API
+
+The Python API tries to convert NEXUS constructs to appropriate Python objects, e.g.
+- NEXUS content is a `list` of `Command` objects,
+- missing states in a CHARACTERS MATRIX are conveyed as `None` values, etc.
+
+This allows for dealing with NEXUS data in a way that is abstracted from the NEXUS formatting
+conventions
 
 For a detailed documentation of the Python API, refer to the
 [docs on ReadTheDocs](https://commonnexus.readthedocs.io/en/latest/index.html).

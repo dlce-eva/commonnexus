@@ -70,6 +70,19 @@ Combining CHARACTERS blocks
     :shell:
 
 
+`commonnexus split`
+-------------------
+
+The `Mesquite software <https://www.mesquiteproject.org/>`_ can write multiple TAXA, CHARACTERS and
+TREES blocks - linked together via TITLE and LINK commands to a single NEXUS file. Most other tools
+can't handle such "multi-taxa" files, though.
+
+Running ``commonnexus split`` will split such files into one NEXUS file per CARACTERS or TREES block,
+bundled with the appropriate TAXA block.
+
+.. command-output:: commonnexus split -h
+
+
 `commonnexus characters`
 ------------------------
 
