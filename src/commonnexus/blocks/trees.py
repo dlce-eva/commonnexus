@@ -285,13 +285,13 @@ class Trees(Block):
     """
     This block stores information about trees. The syntax for the TREES block is
 
-    .. code-block::
+    .. rst-class:: nexus
 
-        BEGIN TREES;
-            [TRANSLATE arbitrary-token-used-in-tree-description valid-taxon-name
-                [, arbitrary-token-used-in-tree-description valid-taxon-name...];]
-            [TREE [*] tree-name= tree-specification;]
-        END;
+        | BEGIN TREES;
+        |     [:class:`TRANSLATE <Translate>` arbitrary-token-used-in-tree-description
+        |       valid-taxon-name [, arbitrary-token-used-in-tree-description valid-taxon-name...];]
+        |     [:class:`TREE <Tree>` [*] tree-name= tree-specification;]
+        | END;
 
     A :class:`TRANSLATE <Translate>` command, if present, must precede any
     :class:`TREE <Tree>` command.
@@ -327,8 +327,8 @@ class Trees(Block):
 
     def translate(self, tree: typing.Union[Tree, newick.Node]) -> newick.Node:
         """
+        Translate a tree according to the mapping TREES TRANSLATE.
 
-        :param tree:
         :return: A Newick node where the node labels have been translated to valid taxon labels.
 
         .. note::
