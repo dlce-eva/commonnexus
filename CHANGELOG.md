@@ -1,5 +1,8 @@
 # Changes
 
+## [Unreleased]
+
+
 ## [v1.2.0] - 2023-03-15
 
 - API: Added `Tree.newick_string` property.
