@@ -325,6 +325,18 @@ class Trees(Block):
                 tree_seen = True
         return valid
 
+    @cached_property
+    def translate_mapping(self):
+        mapping = {}
+        if 'TRANSLATE' in self.commands:
+            mapping.update(self.TRANSLATE.mapping)
+        if 'TAXA' in self.linked_blocks:
+            mapping.update({
+                str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
+        elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
+            mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
+        return mapping
+
     def translate(self, tree: typing.Union[Tree, newick.Node]) -> newick.Node:
         """
         Translate a tree according to the mapping TREES TRANSLATE.
@@ -350,18 +362,10 @@ class Trees(Block):
                 ...     untranslated.TREES, [('TREE', tree) for tree in trees])
                 >>> path.write_text(str(untranslated))
         """
-        mapping = {}
-        if 'TRANSLATE' in self.commands:
-            mapping.update(self.TRANSLATE.mapping)
-        if 'TAXA' in self.linked_blocks:
-            mapping.update({
-                str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
-        elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
-            mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
-
-        res = (tree.newick if isinstance(tree, Tree) else tree).rename(auto_quote=True, **mapping)
+        res = (tree.newick if isinstance(tree, Tree) else tree).rename(
+            auto_quote=True, **self.translate_mapping)
         if not set(n.unquoted_name for n in res.walk() if n.name and n.is_leaf).issubset(
-                mapping.values()):
+                self.translate_mapping.values()):
             warnings.warn('un-translatable leaf nodes!')
         return res
 
