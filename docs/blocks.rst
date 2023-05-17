@@ -17,6 +17,45 @@ From the specification:
     ASSUMPTIONS, CODONS, TREES, and NOTES.
 
 
+Mutability
+----------
+
+``Nexus`` objects are mutable, i.e. blocks can be added and removed during the "lifetime" of a
+``Nexus`` instance. To make this possible, the only data kept in an instance is the list of tokens
+representing the parsed NEXUS content. Thus, when accessing a block in a ``Nexus`` object, this
+``Block`` instance is created from the token list, and, consequently, accessing a block again will
+return a new instance:
+
+.. code-block:: python
+
+    >>> from commonnexus import Nexus
+    >>> nex = Nexus('#NEXUS\nBEGIN BLOCK;\nEND;')
+    >>> nex.BLOCK is nex.BLOCK
+    False
+    >>> id(nex.BLOCK)
+    140138642078064
+    >>> id(nex.BLOCK)
+    140138642079584
+
+Since blocks are ``tuple`` instances, they will still compare as expected, if they are created from
+the same list of tokens, though:
+
+.. code-block:: python
+
+    >>> nex.BLOCK == nex.BLOCK
+    True
+
+But to take advantage of caching happening of block level (e.g. of TRANSLATE mappings in TREES a block),
+care must be taken to retain a reference to the ``Block`` instance:
+
+.. code-block:: python
+
+    >>> nex = Nexus('#NEXUS\nBEGIN TREES;\nTRANSLATE a b, c d;\nTREE tree = (a,c);\nEND;')
+    >>> trees = nex.TREES
+    >>> trees.translate(trees.TREE).newick
+    '(b,d)'
+
+
 TAXA
 ----
 

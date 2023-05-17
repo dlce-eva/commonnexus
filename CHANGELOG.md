@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- Cache translate mappings in TREES block to speedup translation of multiple trees.
+
 
 ## [v1.2.0] - 2023-03-15
 
