@@ -43,6 +43,8 @@ Releasing commonnexus
   twine upload dist/*
   ```
 
+- Trigger building docs on https://readthedocs.org/projects/commonnexus
+
 - Push to github:
   ```shell
   git push origin
