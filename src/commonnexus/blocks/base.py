@@ -3,9 +3,9 @@ Basic building blocks of NEXUS files.
 """
 import re
 import typing
+import functools
 import collections
 
-from commonnexus._compat import cached_property
 from commonnexus.tokenizer import (
     get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType, Word,
 )
@@ -22,7 +22,7 @@ class Payload:
         self.nexus = nexus
         self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
 
-    @cached_property
+    @functools.cached_property
     def comments(self):
         return [t.text for t in self._tokens if t.type == TokenType.COMMENT]
 
@@ -103,7 +103,7 @@ class Block(tuple):
     def __str__(self):
         return ''.join(str(cmd) for cmd in self)
 
-    @cached_property
+    @functools.cached_property
     def payload_map(self):
         res = {cls.__name__.upper(): cls for cls in self.__commands__}
         res.update(LINK=Link, TITLE=Title, ID=Id)
@@ -140,11 +140,11 @@ class Block(tuple):
                 return None
         return super().__getattribute__(name)
 
-    @cached_property
+    @functools.cached_property
     def name(self):
         return get_name(self[0].iter_payload_tokens())
 
-    @cached_property
+    @functools.cached_property
     def commands(self):
         res = collections.defaultdict(list)
         for cmd in self:

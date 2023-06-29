@@ -1,11 +1,11 @@
 import typing
 import warnings
+import functools
 import collections
 
 import newick
 
 from .base import Payload, Block
-from commonnexus._compat import cached_property
 from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token
 
@@ -199,7 +199,7 @@ class Tree(Payload):
         if self._rooted:
             return self._rooted == '&R'
 
-    @cached_property
+    @functools.cached_property
     def newick_string(self) -> str:
         """
         The Newick-formatted string representation of the tree.
@@ -226,7 +226,7 @@ class Tree(Payload):
         """
         return ''.join(str(t) for t in self.newick_tokens) + ';'
 
-    @cached_property
+    @functools.cached_property
     def newick(self) -> newick.Node:
         """
         A `newick.Node` instance parsed from the Newick representation of the tree.
@@ -325,7 +325,7 @@ class Trees(Block):
                 tree_seen = True
         return valid
 
-    @cached_property
+    @functools.cached_property
     def translate_mapping(self):
         mapping = {}
         if 'TRANSLATE' in self.commands:

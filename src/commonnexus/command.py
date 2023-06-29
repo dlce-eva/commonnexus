@@ -1,6 +1,6 @@
+import functools
 import itertools
 
-from ._compat import cached_property
 from .tokenizer import TokenType, iter_tokens, Token, get_name
 
 
@@ -12,7 +12,7 @@ class Command(tuple):
         semicolons, except as terminators, unless the semicolons are contained within a comment
         or within a quoted token consisting of more than one text character.
     """
-    @cached_property
+    @functools.cached_property
     def name(self):
         return get_name(self)
 

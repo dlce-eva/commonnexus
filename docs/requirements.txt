@@ -1,5 +1,0 @@
-sphinx-autodoc-typehints
-sphinx-rtd-theme
-sphinx-prompt
-sphinxcontrib-programoutput
-termgraph
