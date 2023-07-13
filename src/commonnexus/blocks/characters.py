@@ -1139,7 +1139,7 @@ class Characters(Block):
                     n,
                     Word(l).as_nexus_string(),
                     '/' + ' '.join(Word(ll).as_nexus_string() for ll in statelabels[l].values())
-                    if l in statelabels else '',
+                    if statelabels.get(l) else '',
                 ) for n, l in charlabels.items())))
         if taxlabels:
             cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
