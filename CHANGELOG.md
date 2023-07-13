@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Dropped py3.7 compatibility.
+- Allow unquoted content for SYMBOLS sub-command of FORMAT.
 
 
 ## [v1.3.0] - 2023-05-17

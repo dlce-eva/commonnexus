@@ -141,6 +141,13 @@ class Format(Payload):
        of these additional symbols within the SYMBOLS list. (These additional symbols will be
        inserted at the beginning of the SYMBOLS list in PAUP and at the end in MacClade. MacClade
        will accept additional symbols for PROTEIN but not DNA, RNA, and NUCLEOTIDE matrices.)
+
+       .. warning::
+
+            While the specification requires the content of the SYMBOLS subcommand to be enclosed in
+            doublequotes, `commonnexus` also allows unquoted content; i.e. `SYMBOLS=01` is treated
+            as equivalent to `SYMBOLS="01"`.
+
     6. EQUATE. This subcommand allows one to define symbols to represent one matrix entry. For
        example, EQUATE="E=(012)" means that each occurrence of E in the MATRIX command will be
        interpreted as meaning states 0, 1, and 2. The equate symbols cannot be any of the
@@ -348,12 +355,16 @@ class Format(Payload):
                 elif subcommand == 'SYMBOLS':
                     self.explicit_symbols = True
                     self.symbols = []
-                    for w in iter_delimited(after_equals(), words):
-                        if isinstance(w, str):
-                            self.symbols.extend(list(w))
-                        else:
-                            assert w.text in '+-'
-                            self.symbols.append(w.text)
+                    next_token_text = after_equals()
+                    if not next_token_text.startswith('"'):
+                        self.symbols = list(next_token_text)
+                    else:
+                        for w in iter_delimited(next_token_text, words):
+                            if isinstance(w, str):
+                                self.symbols.extend(list(w))
+                            else:
+                                assert w.text in '+-'
+                                self.symbols.append(w.text)
                 elif subcommand == 'EQUATE':
                     key, e, bracket = None, False, None
                     for t in iter_delimited(after_equals(), words):

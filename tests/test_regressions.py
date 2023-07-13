@@ -12,6 +12,11 @@ def regression(fixture_dir):
     return fixture_dir / 'regression'
 
 
+def test_UnquotedSymbols(regression):
+    nex = Nexus.from_file(regression / 'unquoted_symbols.nex')
+    assert nex.DATA.FORMAT.symbols == ['0', '1']
+
+
 def test_Morphobank(morphobank, regression):
     nex = Nexus.from_file(morphobank)
     assert len(nex.NOTES.texts) == 30
