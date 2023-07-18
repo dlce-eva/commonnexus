@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.4.0] - 2023-07-18
 
 - Dropped py3.7 compatibility.
 - Allow unquoted content for SYMBOLS sub-command of FORMAT.
