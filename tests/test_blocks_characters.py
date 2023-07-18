@@ -1,3 +1,5 @@
+import warnings
+
 import pytest
 
 from commonnexus import Nexus, Config
@@ -249,3 +251,16 @@ def test_Characters_validate(nexus):
 def test_Data_with_Options(nexus):
     nex = nexus(DATA="DIMENSIONS NCHAR=1; OPTIONS GAPMODE=missing; MATRIX t1 1;")
     assert nex.characters.OPTIONS.gapmode == 'missing'
+
+
+def test_Data_with_duplicate_charlabels(nexus):
+    with warnings.catch_warnings(record=True) as w:
+        nex = nexus(DATA="DIMENSIONS NCHAR=2; CHARLABELS x x; MATRIX t1 1 1;")
+        nex.characters.get_matrix()
+        assert len(w) == 1, 'Expected 1 warning, got %r' % w
+
+
+def test_Data_with_mixed_charlabels(nexus):
+    nex = nexus(DATA="DIMENSIONS NCHAR=2; CHARSTATELABELS 1 x, 2 ; MATRIX t1 1 1;")
+    m = nex.characters.get_matrix()
+    assert '2' in m['t1'], 'unspecified character label'

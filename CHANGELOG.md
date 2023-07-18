@@ -4,6 +4,7 @@
 
 - Dropped py3.7 compatibility.
 - Allow unquoted content for SYMBOLS sub-command of FORMAT.
+- Warn (or raise Error) when duplicate character names are specified for a MATRIX.
 
 
 ## [v1.3.0] - 2023-05-17

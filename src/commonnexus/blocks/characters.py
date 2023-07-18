@@ -21,6 +21,14 @@ GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable
 INVALID_SYMBOLS = "()[]{}/\\,;:=*'\"*`<>^"
 
 
+def duplicate_charlabel(label, cmd, nexus):
+    if nexus and nexus.cfg.strict:  # pragma: no cover
+        raise ValueError('character names must be unique!')
+    else:
+        warnings.warn(
+            'Duplicate character name "{}" in {} command'.format(label, cmd))
+
+
 class Eliminate(Payload):
     """
     This command allows specification of a list of characters that are to be excluded from
@@ -111,7 +119,15 @@ class Format(Payload):
        DATATYPE=CONTINUOUS. These DATATYPES are described in detail, with examples, at the end of
        the description of the CHARACTERS block.
 
-       .. warning:: ``DATATYPE=CONTINUOUS`` is currently not supported in `commonnexus`.
+       .. warning::
+
+        ``DATATYPE=CONTINUOUS`` is currently not supported in `commonnexus`.
+        Some programs accept (or expect) datatypes beyond the ones defined in the NEXUS spec;
+        e.g. MrBayes has ``DATATYPE=RESTRICTION`` and Beauti may create "NEXUS" files with
+        ``DATATYPE=BINARY``. `commonnexus` does not accept these non-standard datatypes and raises
+        an exception when trying to read the MATRIX. Thus, to make "NEXUS" files with
+        non-standard datatypes readable for `commonnexus`, substituting ``DATATYPE=STANDARD`` is
+        typically the right thing to do.
 
     2. RESPECTCASE. By default, information in a MATRIX may be entered in uppercase, lowercase, or
        a mixture of uppercase and lowercase. If RESPECTCASE is requested, case is considered
@@ -329,6 +345,7 @@ class Format(Payload):
         after_equals = functools.partial(word_after_equals, words)
 
         subcommand = None
+        subcommands_set = set()
         while 1:
             try:
                 word = next(words)
@@ -341,6 +358,7 @@ class Format(Payload):
                         if subcommand == 'LABELS' and word == 'left':
                             word = 'yes'
                         setattr(self, subcommand.lower(), BOOLEAN[word])
+                        subcommands_set.add(subcommand)
                     elif subcommand:  # pragma: no cover
                         raise ValueError(subcommand)
 
@@ -349,7 +367,8 @@ class Format(Payload):
                     if subcommand == 'DATATYPE' and self.datatype.upper() != 'STANDARD':
                         self.symbols = []
                 elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
-                    setattr(self, subcommand.lower(), True)
+                    if subcommand not in subcommands_set:
+                        setattr(self, subcommand.lower(), True)
                 elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
                     setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
                 elif subcommand == 'SYMBOLS':
@@ -491,11 +510,18 @@ class Charstatelabels(Payload):
         'eye_color'
         >>> cmd.characters[0].states
         ['red', 'blue', 'green']
+
+    .. warning::
+
+        In strict mode (see :class:`commonnexus.nexus.Config`) duplicate character names will raise
+        a ``ValueError``, otherwise a ``UserWarning`` will be emitted. While a matrix with duplicate
+        character names can still be read, it will typically **not** be as expected, because only
+        the values for the last character for a given name will be present.
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         self.characters = []
-
+        names = set()
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         num, name, states, in_states, comma = None, None, [], False, False
 
@@ -507,6 +533,9 @@ class Charstatelabels(Payload):
                     continue
                 if isinstance(w, Token) and w.text == ',':
                     comma = True  # We want to be able to detect trailing commas!
+                    if name and name in names:
+                        duplicate_charlabel(name, 'CHARSTATELABELS', nexus)
+                    names.add(name)
                     self.characters.append(
                         types.SimpleNamespace(number=num, name=name, states=states))
                     num, name, states, in_states = None, None, [], False
@@ -555,8 +584,12 @@ class Charlabels(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         self.characters = []
+        names = set()
         for i, w in enumerate(iter_words_and_punctuation(self._tokens, nexus=nexus)):
             assert isinstance(w, str)
+            if w and w in names:
+                duplicate_charlabel(w, 'CHARLABELS', nexus)
+            names.add(w)
             self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
 
 

@@ -13,8 +13,10 @@ def regression(fixture_dir):
 
 
 def test_UnquotedSymbols(regression):
-    nex = Nexus.from_file(regression / 'unquoted_symbols.nex')
-    assert nex.DATA.FORMAT.symbols == ['0', '1']
+    with warnings.catch_warnings(record=True) as w:
+        nex = Nexus.from_file(regression / 'unquoted_symbols.nex')
+        assert nex.DATA.FORMAT.symbols == ['0', '1']
+        assert len(w) == 72, 'Expected 72 warnings, got %r' % w
 
 
 def test_Morphobank(morphobank, regression):
