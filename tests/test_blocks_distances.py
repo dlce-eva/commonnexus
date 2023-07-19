@@ -159,20 +159,22 @@ def test_Distances_from_data():
     nex.append_block(Distances.from_data({'t1': {'t1': 0}}, taxlabels=True))
     assert str(nex) == """#NEXUS
 BEGIN DISTANCES;
-\tDIMENSIONS NEWTAXA NTAX=1 NTAX=1;
-\tFORMAT TRIANGLE=BOTH MISSING=?;
-\tTAXLABELS t1;
-\tMATRIX 
-    t1 0;
+DIMENSIONS NEWTAXA NTAX=1 NTAX=1;
+FORMAT TRIANGLE=BOTH MISSING=?;
+TAXLABELS t1;
+MATRIX 
+t1 0
+;
 END;"""
 
     nex = Nexus()
     nex.append_block(Distances.from_data({'t 1': {'t 1': 0}}, taxlabels=True, nexus=nex))
     assert str(nex) == """#NEXUS
 BEGIN DISTANCES;
-\tDIMENSIONS NEWTAXA NTAX=1 NTAX=1;
-\tFORMAT TRIANGLE=BOTH MISSING=?;
-\tTAXLABELS 't 1';
-\tMATRIX 
-    't 1' 0;
+DIMENSIONS NEWTAXA NTAX=1 NTAX=1;
+FORMAT TRIANGLE=BOTH MISSING=?;
+TAXLABELS 't 1';
+MATRIX 
+'t 1' 0
+;
 END;"""

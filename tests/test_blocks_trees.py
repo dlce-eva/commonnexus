@@ -61,10 +61,10 @@ BEGIN TAXA;
 TAXLABELS A B C;
 END;
 BEGIN TREES;
-\tTRANSLATE A X,
+TRANSLATE A X,
 B Y,
 C Z;
-\tTREE 'the tree' = [&U] (A,B)C;
+TREE 'the tree' = [&U] (A,B)C;
 END;"""
 
 

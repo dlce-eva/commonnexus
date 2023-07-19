@@ -27,7 +27,7 @@ class Command(tuple):
         tokens = []
         if comment:
             tokens.extend([Token('\n', TokenType.WHITESPACE), Token(comment, TokenType.COMMENT)])
-        tokens.append(Token('\n\t' if in_block else '\n', TokenType.WHITESPACE))
+        tokens.append(Token('\n', TokenType.WHITESPACE))
         name = list(iter_tokens(iter(name)))
         assert len(name) == 1 and name[0].type == TokenType.WORD
         tokens.extend(name)

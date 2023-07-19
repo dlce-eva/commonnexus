@@ -169,12 +169,13 @@ BEGIN TAXA;
 DIMENSIONS NTAX=3; TAXLABELS t1 t2 t3;
 END;
 BEGIN CHARACTERS;
-\tDIMENSIONS NCHAR=3;
-\tFORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
-\tMATRIX 
-    t1 {01}(01)0
-    t2 010
-    t3 001;
+DIMENSIONS NCHAR=3;
+FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+MATRIX 
+t1 {01}(01)0
+t2 010
+t3 001
+;
 END;"""
     assert nex.characters.get_matrix() == matrix
 
@@ -183,12 +184,13 @@ END;"""
     nex.append_block(Characters.from_data(matrix, taxlabels=True))
     assert str(nex) == """#NEXUS
 BEGIN CHARACTERS;
-\tDIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
-\tFORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
-\tTAXLABELS t1 t2;
-\tMATRIX 
-    t1 01
-    t2 10;
+DIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
+FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+TAXLABELS t1 t2;
+MATRIX 
+t1 01
+t2 10
+;
 END;"""
     assert nex.characters.get_matrix() == matrix
 
@@ -197,12 +199,13 @@ END;"""
     nex.append_block(Characters.from_data(matrix, taxlabels=True))
     assert str(nex) == """#NEXUS
 BEGIN CHARACTERS;
-\tDIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
-\tFORMAT DATATYPE=STANDARD RESPECTCASE MISSING=? GAP=- SYMBOLS="ABab";
-\tTAXLABELS t1 t2;
-\tMATRIX 
-    t1 aB
-    t2 Ab;
+DIMENSIONS NEWTAXA NTAX=2 NCHAR=2;
+FORMAT DATATYPE=STANDARD RESPECTCASE MISSING=? GAP=- SYMBOLS="ABab";
+TAXLABELS t1 t2;
+MATRIX 
+t1 aB
+t2 Ab
+;
 END;"""
     assert nex.characters.get_matrix() == matrix
 

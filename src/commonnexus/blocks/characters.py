@@ -1109,9 +1109,10 @@ class Characters(Block):
             DIMENSIONS NCHAR=3;
             FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
             MATRIX
-                t1 100
-                t2 010
-                t3 001;
+            t1 100
+            t2 010
+            t3 001
+            ;
             END;
 
         :param matrix: A matrix as returned by :meth:`Characters.get_matrix()`, with unlabeled \
@@ -1149,7 +1150,7 @@ class Characters(Block):
                     row.append('{{{}}}'.format(''.join(sorted(symbol(c) for c in entry))))
                 else:
                     row.append(symbol(entry))
-            rows.append('\n    {} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))
+            rows.append('\n{} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))
 
         symbols = ''.join(sorted([s for s in symbols if s not in [None, GAP]]))
         if missing in symbols or (gap in symbols):
@@ -1176,7 +1177,7 @@ class Characters(Block):
                 ) for n, l in charlabels.items())))
         if taxlabels:
             cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
-        cmds.append(('MATRIX', ''.join(rows)))
+        cmds.append(('MATRIX', ''.join(rows) + '\n'))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
 
 

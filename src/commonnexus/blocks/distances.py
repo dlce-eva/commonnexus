@@ -383,5 +383,5 @@ class Distances(Block):
             row = [tlabels[taxon].ljust(maxlen)]
             row.extend(['?' if v is None else str(v) for v in dists.values()])
             mrows.append(' '.join(row))
-        cmds.append(('MATRIX', ''.join('\n    ' + row for row in mrows)))
+        cmds.append(('MATRIX', ''.join('\n' + row for row in mrows) + '\n'))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)

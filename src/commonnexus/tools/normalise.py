@@ -11,9 +11,11 @@ Normalisation includes
 
 In addition, after normalisation, the following assumptions hold:
 
-- All commands start on a new line, preceded by "\t" if the command is within a block.
+- All commands start on a new line.
 - All command names (**not** block names) are in uppercase with no "in-name-comment",
   like "MA[c]TRiX"
+- The ";" terminating MATRIX commands is on a separate line, allowing more simplistic parsing
+  of matrix rows.
 """
 from commonnexus import Nexus
 from commonnexus.blocks.characters import Data
@@ -67,17 +69,19 @@ def normalise(nexus: Nexus,
         DIMENSIONS NCHAR=3;
         FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
         MATRIX
-            t1 100
-            t2 010
-            t3 001;
+        t1 100
+        t2 010
+        t3 001
+        ;
         END;
         BEGIN DISTANCES;
         DIMENSIONS NTAX=3;
         FORMAT TRIANGLE=BOTH MISSING=?;
         MATRIX
-            t1 0 1.0 2.0
-            t2 1.0 0 3.0
-            t3 2.0 3.0 0;
+        t1 0 1.0 2.0
+        t2 1.0 0 3.0
+        t3 2.0 3.0 0
+        ;
         END;
         BEGIN TREES;
         TREE 1 = (t1,t2,t3);

@@ -1,5 +1,12 @@
 # Changes
 
+## [Unreleased]
+
+- Make NEXUS content created by `commonnexus` simpler to parse and thus
+  `commonnexus normalise` more useful as a tool to prepare NEXUS input for
+  other tools.
+
+
 ## [v1.4.0] - 2023-07-18
 
 - Dropped py3.7 compatibility.
