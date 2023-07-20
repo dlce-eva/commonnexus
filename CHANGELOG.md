@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.5.0] - 2023-07-20
 
 - Make NEXUS content created by `commonnexus` simpler to parse and thus
   `commonnexus normalise` more useful as a tool to prepare NEXUS input for
