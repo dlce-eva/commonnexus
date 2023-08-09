@@ -17,6 +17,9 @@ In addition, after normalisation, the following assumptions hold:
 - The ";" terminating MATRIX commands is on a separate line, allowing more simplistic parsing
   of matrix rows.
 """
+import typing
+import collections
+
 from commonnexus import Nexus
 from commonnexus.blocks.characters import Data
 from commonnexus.blocks import Taxa, Distances, Characters, Trees
@@ -24,12 +27,14 @@ from commonnexus.blocks import Taxa, Distances, Characters, Trees
 
 def normalise(nexus: Nexus,
               data_to_characters: bool = False,
-              strip_comments: bool = False) -> Nexus:
+              strip_comments: bool = False,
+              remove_taxa: typing.Optional[typing.Container[str]] = None) -> Nexus:
     """
     :param nexus: A `Nexus` object to be normalised in-place.
     :param data_to_characters: Flag signaling whether DATA blocks should be converted to CHARACTER \
     blocks.
     :param strip_comments: Flag signaling whether to remove all non-command comments.
+    :param remove_taxa: Container of taxon labels specifying taxa to remove from relevant blocks.
     :return: The modified `Nexus` object.
 
     .. code-block:: python
@@ -87,6 +92,8 @@ def normalise(nexus: Nexus,
         TREE 1 = (t1,t2,t3);
         END;
     """
+    remove_taxa = remove_taxa or []
+
     if strip_comments:
         nexus = Nexus([cmd.without_comments() for cmd in nexus], config=nexus.cfg)
     nexus = Nexus([cmd.with_normalised_whitespace() for cmd in nexus], config=nexus.cfg)
@@ -95,6 +102,7 @@ def normalise(nexus: Nexus,
     if nexus.characters:
         matrix = nexus.characters.get_matrix()
         taxlabels = list(matrix.keys())
+        matrix = collections.OrderedDict((k, v) for k, v in matrix.items() if k not in remove_taxa)
         characters = nexus.DATA or nexus.CHARACTERS
         cls = Data if characters.name == 'DATA' and not data_to_characters else Characters
         nexus.replace_block(
@@ -107,19 +115,26 @@ def normalise(nexus: Nexus,
             assert set(matrix.keys()).issubset(taxlabels)
         else:
             taxlabels = list(matrix.keys())
+        matrix = collections.OrderedDict(
+            (k, collections.OrderedDict((kk, vv) for kk, vv in v.items() if kk not in remove_taxa))
+            for k, v in matrix.items() if k not in remove_taxa)
         nexus.replace_block(nexus.DISTANCES, Distances.from_data(matrix))
 
     if nexus.TREES:
         trees = []
         for tree in nexus.TREES.trees:
             nwk = nexus.TREES.translate(tree) if nexus.TREES.TRANSLATE else tree.newick
+            if remove_taxa:
+                nwk.prune_by_names(remove_taxa)
             trees.append((tree.name, nwk, tree.rooted))
         nexus.replace_block(nexus.TREES, Trees.from_data(*trees))
 
     if taxlabels:
+        taxa = Taxa.from_data([t for t in taxlabels if t not in remove_taxa])
         if nexus.TAXA:
             assert nexus.TAXA.DIMENSIONS.ntax == len(taxlabels)
             assert set(nexus.TAXA.TAXLABELS.labels.values()) == set(taxlabels)
+            nexus.replace_block(nexus.TAXA, taxa)
         else:
-            nexus.prepend_block(Taxa.from_data(taxlabels))
+            nexus.prepend_block(taxa)
     return nexus

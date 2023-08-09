@@ -1,5 +1,10 @@
 # Changes
 
+## [Unreleased]
+
+- `tools.normalise.normalise` now accepts a `remove_taxa` argument, making it easy to remove taxa from a NEXUS file in a consistent way.
+
+
 ## [v1.5.0] - 2023-07-20
 
 - Make NEXUS content created by `commonnexus` simpler to parse and thus

@@ -44,6 +44,38 @@ END;"""
     assert res.TAXA
 
 
+def test_normalise_remove_taxon(nexus):
+    nex = nexus(
+        CHARACTERS="DIMENSIONS NCHAR=3; MATRIX 't 1' 100 t2 010 t3 001;",
+        DISTANCES="FORMAT NODIAGONAL; MATRIX 't 1' t2  1.0 t3 2.0 3.0;",
+        TREES="TRANSLATE a 't 1', b t2, c t3; TREE 1 = (a,b\n,c);")
+    res = str(normalise(nex, remove_taxa={'t2'}))
+    assert res == """#NEXUS
+BEGIN TAXA;
+DIMENSIONS NTAX=2;
+TAXLABELS 't 1' t3;
+END;
+BEGIN CHARACTERS;
+DIMENSIONS NCHAR=3;
+FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+MATRIX 
+'t 1' 100
+t3    001
+;
+END;
+BEGIN DISTANCES;
+DIMENSIONS NTAX=2;
+FORMAT TRIANGLE=BOTH MISSING=?;
+MATRIX 
+'t 1' 0 2.0
+t3    2.0 0
+;
+END;
+BEGIN TREES;
+TREE 1 = ('t 1',t3);
+END;"""
+
+
 def test_normalise_stripcomments():
     res = normalise(Nexus('#nexus beg[c]in bl[&c]ock; cmd; end[c];'), strip_comments=True)
     assert '[c]' not in str(res)
