@@ -1,5 +1,11 @@
 # Changes
 
+## [Unreleased]
+
+- Fixed bug whereby the correct precedence of taxa labels was not obeyed when
+  translating trees.
+
+
 ## [v1.6.0] - 2023-08-09
 
 - `tools.normalise.normalise` now accepts a `remove_taxa` argument, making

@@ -7,7 +7,7 @@ The following blocks can be handled:
  - CHARACTERS/DATA: Characters are aggregated across NEXUS files (with character labels prefixed,
    for disambiguation).
  - TREES: Trees are (translated and) aggregated across NEXUS files.
- - DISTANCES?
+
 """
 import collections
 

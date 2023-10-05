@@ -328,13 +328,13 @@ class Trees(Block):
     @functools.cached_property
     def translate_mapping(self):
         mapping = {}
-        if 'TRANSLATE' in self.commands:
-            mapping.update(self.TRANSLATE.mapping)
         if 'TAXA' in self.linked_blocks:
             mapping.update({
                 str(k): v for k, v in self.linked_blocks['TAXA'].TAXLABELS.labels.items()})
         elif self.nexus.TAXA and self.nexus.TAXA.TAXLABELS:
             mapping.update({str(k): v for k, v in self.nexus.TAXA.TAXLABELS.labels.items()})
+        if 'TRANSLATE' in self.commands:
+            mapping.update(self.TRANSLATE.mapping)
         return mapping
 
     def translate(self, tree: typing.Union[Tree, newick.Node]) -> newick.Node:

@@ -31,6 +31,19 @@ def test_Tree_translate_with_taxa_from_linked_block(nexus):
     assert nex.TREES.translate(nex.TREES.TREE).newick == '(A,B)C'
 
 
+def test_Tree_translate_with_numeric_labels():
+    nex = Nexus("""#NEXUS
+    BEGIN TAXA;
+        TAXLABELS Scarabaeus Drosophila Aranaeus;
+    END;
+    BEGIN TREES;
+        TRANSLATE 0 Scarabaeus, 1 Drosophila, 2 Aranaeus;
+        TREE tree = ((0,1),2);
+    END;""")
+    tree = nex.TREES.translate(nex.TREES.TREE)
+    assert {n.name for n in tree.walk() if n.name} == {'Scarabaeus', 'Drosophila', 'Aranaeus'}
+
+
 def test_Trees_complex_newick():
     s = """#nexus
 BEGIN TAXA;
