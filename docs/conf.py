@@ -9,7 +9,7 @@
 project = 'commonnexus'
 copyright = '2023, Robert Forkel'
 author = 'Robert Forkel'
-release = '1.6.1'
+release = '1.6.2.dev0'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
