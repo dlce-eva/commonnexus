@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.6.1] - 2023-10-05
 
 - Fixed bug whereby the correct precedence of taxa labels was not obeyed when
   translating trees.
