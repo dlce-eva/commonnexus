@@ -1,5 +1,10 @@
 # Changes
 
+## [Unreleased]
+
+Allow adding a comment to blocks created from data.
+
+
 ## [v1.6.1] - 2023-10-05
 
 - Fixed bug whereby the correct precedence of taxa labels was not obeyed when

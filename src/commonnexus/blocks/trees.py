@@ -9,6 +9,9 @@ from .base import Payload, Block
 from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus.nexus import Nexus
+
 TreeSpec = typing.Tuple[str, typing.Union[str, newick.Node], typing.Union[None, bool]]
 
 
@@ -372,17 +375,28 @@ class Trees(Block):
     @classmethod
     def from_data(cls,
                   *tree_specs: typing.Iterable[TreeSpec],
+                  nexus: typing.Optional["Nexus"] = None,
+                  comment: typing.Optional[str] = None,
+                  TITLE: typing.Optional[str] = None,
+                  LINK: typing.Optional[str] = None,
+                  ID: typing.Optional[str] = None,
                   **translate_labels: typing.Dict[str, str]) -> 'Trees':
         """
         Create a TREES block from a list of tree specifications.
 
+        A tree specification is a triple (label, newick, rooted), e.g. `('t1', '(a,b)c;', False)`.
+
         If `translate_labels` are passed in, a corresponding TRANSLATE command will be added to the
         block and the trees will be "de-translated" accordingly.
+
+        .. code-block:: python
+
+            >>> print(Trees.from_data(('t1', '(a,b)c;', False), comment='A consensus tree'))
+            [A consensus tree]
+            BEGIN TREES;
+            TREE t1 = [&U] (a,b)c;
+            END;
         """
-        TITLE = translate_labels.pop('TITLE', None)
-        LINK = translate_labels.pop('LINK', None)
-        ID = translate_labels.pop('ID', None)
-        nexus = translate_labels.pop('nexus', None)
         cmds = []
 
         if translate_labels:
@@ -399,4 +413,4 @@ class Trees(Block):
             if translate_labels:
                 nwk.rename(auto_quote=True, **{v: k for k, v in translate_labels.items()})
             cmds.append(('TREE', Tree.format(name, nwk, rooted)))
-        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID, comment=comment)

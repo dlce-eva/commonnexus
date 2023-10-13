@@ -98,3 +98,9 @@ def test_Tree_newick_string(nexus):
     trees = nex.TREES
     assert trees.TREE.newick_string == '(a, b, c)d;'
     assert {n.name for n in trees.TREE.newick.walk()} == set('abcd')
+
+
+def test_Trees_with_comment():
+    nex = Nexus('#NEXUS\n')
+    nex.append_block(Trees.from_data(comment='the comment'))
+    assert '[the comment]' in str(nex)

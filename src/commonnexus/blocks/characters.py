@@ -11,6 +11,9 @@ from commonnexus.tokenizer import (
 )
 from .taxa import Taxlabels
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus import Nexus
+
 # A state in a CHARACTERS matrix may be missing, gapped, a state symbol or uncertain/polymorphic
 # states.
 State = typing.Union[None, str, typing.Set[str], typing.Tuple[str]]
@@ -1076,10 +1079,12 @@ class Characters(Block):
                   datatype: str = 'STANDARD',
                   missing: str = '?',
                   gap: str = '-',
+                  comment: typing.Optional[str] = None,
+                  nexus: typing.Optional["Nexus"] = None,
                   TITLE: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
-                  **kw) -> 'Characters':
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
+            -> 'Characters':
         """
         Instantiate a CHARACTERS or DATA block from a metrix.
 
@@ -1123,11 +1128,10 @@ class Characters(Block):
         :param datatype:
         :param missing:
         :param gap:
-        :param kw:
+        :param nexus: An optional Nexus instance to lookup global config options.
         """
         if datatype != 'STANDARD':  # pragma: no cover
             raise NotImplementedError('Only DATATYPE=STANDARD is supported for writing CHARACTERS')
-        nexus = kw.pop('nexus', None)
 
         symbols, rows, charlabels, maxlen, tlabels = set(), [], None, 0, {}
         for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
@@ -1178,7 +1182,7 @@ class Characters(Block):
         if taxlabels:
             cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
         cmds.append(('MATRIX', ''.join(rows) + '\n'))
-        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
 
 
 class Options(Payload):

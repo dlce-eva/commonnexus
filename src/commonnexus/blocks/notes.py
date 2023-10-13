@@ -3,6 +3,9 @@ import typing
 from .base import Block, Payload
 from commonnexus.tokenizer import iter_key_value_pairs, Word
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus.nexus import Nexus
+
 
 class Text(Payload):
     """
@@ -176,13 +179,14 @@ class Notes(Block):
     @classmethod
     def from_data(cls,
                   texts: typing.List[typing.Dict[str, typing.Union[typing.List[str], str]]],
+                  comment: typing.Optional[str] = None,
+                  nexus: typing.Optional["Nexus"] = None,
                   TITLE: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
-                  **kw) -> 'Block':
-        nexus = kw.pop('nexus', None)
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
+            -> 'Block':
         cmds = [('TEXT', Text(nexus=nexus, **text).as_payload()) for text in texts]
-        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
 
     @property
     def texts(self):

@@ -9,6 +9,9 @@ from .base import Block, Payload
 from . import characters
 from . import taxa
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus import Nexus
+
 ODict = typing.OrderedDict
 
 
@@ -348,10 +351,12 @@ class Distances(Block):
                   matrix: typing.OrderedDict[str, typing.OrderedDict[
                       str, typing.Union[None, float, int, decimal.Decimal]]],
                   taxlabels: bool = False,
+                  comment: typing.Optional[str] = None,
+                  nexus: typing.Optional["Nexus"] = None,
                   TITLE: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
-                  **kw) -> 'Block':
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
+            -> 'Block':
         """
         Create a DISTANCES block from the distance matrix `matrix`.
 
@@ -360,8 +365,6 @@ class Distances(Block):
         :meth:`Distances.get_matrix`.
         :param taxlabels: Whether to include a TAXLABELS command.
         """
-        nexus = kw.pop('nexus', None)
-
         dimensions = 'NTAX={}'.format(len(matrix))
         if taxlabels:
             dimensions = 'NEWTAXA NTAX={} {}'.format(len(matrix), dimensions)
@@ -384,4 +387,4 @@ class Distances(Block):
             row.extend(['?' if v is None else str(v) for v in dists.values()])
             mrows.append(' '.join(row))
         cmds.append(('MATRIX', ''.join('\n' + row for row in mrows) + '\n'))
-        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID)
+        return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID, comment=comment)

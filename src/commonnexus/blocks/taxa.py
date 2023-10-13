@@ -4,6 +4,9 @@ import collections
 from commonnexus.tokenizer import iter_words_and_punctuation, Word
 from .base import Block, Payload
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus.nexus import Nexus
+
 
 class Dimensions(Payload):
     """
@@ -68,12 +71,14 @@ class Taxa(Block):
 
     @classmethod
     def from_data(cls,
-                  labels: typing.Iterable,
+                  labels: typing.Sequence,
+                  comment: typing.Optional[str] = None,
+                  nexus: typing.Optional["Nexus"] = None,
                   TITLE: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
-                  nexus=None) -> 'Block':
+                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
+            -> 'Block':
         return cls.from_commands([
             ('DIMENSIONS', 'NTAX={}'.format(len(labels))),
             ('TAXLABELS', ' '.join(Word(w).as_nexus_string() for w in labels)),
-        ], nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK)
+        ], nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
