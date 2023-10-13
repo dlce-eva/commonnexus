@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.7.0] - 2023-10-13
 
 Allow adding a comment to blocks created from data.
 
