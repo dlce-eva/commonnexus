@@ -11,6 +11,9 @@ from commonnexus.tokenizer import (
 )
 from commonnexus.command import Command
 
+if typing.TYPE_CHECKING:  # pragma: no cover
+    from commonnexus import Nexus
+
 
 class Payload:
     """
@@ -163,12 +166,12 @@ class Block(tuple):
     def from_commands(cls,
                       commands: typing.Iterable[
                           typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
-                      nexus=None,
-                      name=None,
-                      comment=None,
-                      TITLE=None,
-                      LINK=None,
-                      ID=None) -> 'Block':
+                      nexus: typing.Optional["Nexus"] = None,
+                      name: typing.Optional[str] = None,
+                      comment: typing.Optional[str] = None,
+                      TITLE: typing.Optional[str] = None,
+                      LINK: typing.Optional[str] = None,
+                      ID: typing.Optional[str] = None) -> 'Block':
         """
         Generic factory method for blocks.
 
@@ -181,10 +184,12 @@ class Block(tuple):
         blocks the ``from_data`` method of the class implementing the block should be preferred,
         because the latter will make sure that consistent, valid block data is written.
 
-        :param commands:
-        :param nexus:
-        :param name:
-        :return:
+        :param commands: The commands to be inserted in the body of the block. A command can be \
+        specified as single string, which is taken as the name of the command, a pair \
+        (name, payload) or a triple (name, payload, comment).
+        :param nexus: A Nexus instance to lookup global config options.
+        :param name: Explicit name of the block to be created.
+        :return: The instantiated Block object.
 
         .. code-block:: python
 
