@@ -219,7 +219,9 @@ class Nexus(list):
         Write the NEXUS content of a `Nexus` object to a file.
         """
         p = pathlib.Path(p)
-        p.write_text(str(self), encoding=self.cfg.encoding)
+        text = str(self)
+        text += '\n' if not text.endswith('\n') else ''
+        p.write_text(text, encoding=self.cfg.encoding)
 
     def iter_comments(self):
         for cmd in self:

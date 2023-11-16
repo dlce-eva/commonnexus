@@ -374,9 +374,10 @@ class Trees(Block):
 
     @classmethod
     def from_data(cls,
-                  *tree_specs: typing.Iterable[TreeSpec],
+                  *tree_specs: TreeSpec,
                   nexus: typing.Optional["Nexus"] = None,
                   comment: typing.Optional[str] = None,
+                  lowercase_command: bool = False,
                   TITLE: typing.Optional[str] = None,
                   LINK: typing.Optional[str] = None,
                   ID: typing.Optional[str] = None,
@@ -412,5 +413,5 @@ class Trees(Block):
                 nwk = newick.loads(nwk)[0]
             if translate_labels:
                 nwk.rename(auto_quote=True, **{v: k for k, v in translate_labels.items()})
-            cmds.append(('TREE', Tree.format(name, nwk, rooted)))
+            cmds.append(('tree' if lowercase_command else 'TREE', Tree.format(name, nwk, rooted)))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID, comment=comment)

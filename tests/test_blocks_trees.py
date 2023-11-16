@@ -104,3 +104,12 @@ def test_Trees_with_comment():
     nex = Nexus('#NEXUS\n')
     nex.append_block(Trees.from_data(comment='the comment'))
     assert '[the comment]' in str(nex)
+
+
+def test_BEAST_like_trees():
+    nex = Nexus('#NEXUS\n')
+    nex.append_block(Trees.from_data(
+        ('STATE_1', '(X,Y)Z', False), lowercase_command=True))
+    # tracerer counts trees using this pattern:
+    # pattern = "(^tree STATE_)|(\tTREE \\* UNTITLED = \\[&R\\] \\()")
+    assert any(line.startswith('tree STATE_1') for line in str(nex).split('\n'))
