@@ -3,6 +3,7 @@
 ## [Unreleased]
 
 - Support writing NEXUS which is "more compatible" with some R packages.
+- Add Python 3.12 to supported versions.
 
 
 ## [v1.7.0] - 2023-10-13
