@@ -20,6 +20,8 @@ In addition, after normalisation, the following assumptions hold:
 import typing
 import collections
 
+import newick
+
 from commonnexus import Nexus
 from commonnexus.blocks.characters import Data
 from commonnexus.blocks import Taxa, Distances, Characters, Trees
@@ -28,14 +30,27 @@ from commonnexus.blocks import Taxa, Distances, Characters, Trees
 def normalise(nexus: Nexus,
               data_to_characters: bool = False,
               strip_comments: bool = False,
-              remove_taxa: typing.Optional[typing.Container[str]] = None) -> Nexus:
+              remove_taxa: typing.Optional[typing.Container[str]] = None,
+              rename_taxa: typing.Optional[
+                  typing.Union[typing.Callable[[str], str], typing.Dict[str, str]]] = None,
+              ) -> Nexus:
     """
+    Normalise a `Nexus` object as described above.
+
     :param nexus: A `Nexus` object to be normalised in-place.
     :param data_to_characters: Flag signaling whether DATA blocks should be converted to CHARACTER \
     blocks.
     :param strip_comments: Flag signaling whether to remove all non-command comments.
     :param remove_taxa: Container of taxon labels specifying taxa to remove from relevant blocks.
+    :param rename_taxa: Specification of taxa to rename; either a ``dict``, mapping old names to \
+    new names, or a callable, accepting the old name as sole argument and returning the new name.
     :return: The modified `Nexus` object.
+
+    .. warning::
+
+        ``remove_taxa`` and ``rename_taxa`` only operate on TAXA, CHARACTERS/DATA, DISTANCES and
+        TREES blocks. Thus, normalisation may result in an inconsistent NEXUS file, if the file
+        contains other blocks which reference taxa (e.g. NOTES).
 
     .. code-block:: python
 
@@ -94,6 +109,13 @@ def normalise(nexus: Nexus,
     """
     remove_taxa = remove_taxa or []
 
+    def rename_taxon(s):
+        if rename_taxa is None:
+            return s
+        if isinstance(rename_taxa, dict):
+            return rename_taxa.get(s, s)
+        return rename_taxa(s)
+
     if strip_comments:
         nexus = Nexus([cmd.without_comments() for cmd in nexus], config=nexus.cfg)
     nexus = Nexus([cmd.with_normalised_whitespace() for cmd in nexus], config=nexus.cfg)
@@ -102,7 +124,8 @@ def normalise(nexus: Nexus,
     if nexus.characters:
         matrix = nexus.characters.get_matrix()
         taxlabels = list(matrix.keys())
-        matrix = collections.OrderedDict((k, v) for k, v in matrix.items() if k not in remove_taxa)
+        matrix = collections.OrderedDict(
+            (rename_taxon(k), v) for k, v in matrix.items() if k not in remove_taxa)
         characters = nexus.DATA or nexus.CHARACTERS
         cls = Data if characters.name == 'DATA' and not data_to_characters else Characters
         nexus.replace_block(
@@ -116,20 +139,28 @@ def normalise(nexus: Nexus,
         else:
             taxlabels = list(matrix.keys())
         matrix = collections.OrderedDict(
-            (k, collections.OrderedDict((kk, vv) for kk, vv in v.items() if kk not in remove_taxa))
+            (rename_taxon(k), collections.OrderedDict(
+                (rename_taxon(kk), vv) for kk, vv in v.items() if kk not in remove_taxa))
             for k, v in matrix.items() if k not in remove_taxa)
         nexus.replace_block(nexus.DISTANCES, Distances.from_data(matrix))
 
     if nexus.TREES:
+        def rename(n):
+            if n.name:
+                new = rename_taxon(n.unquoted_name)
+                n.name = newick.Node(new, auto_quote=True).name
+
         trees = []
         for tree in nexus.TREES.trees:
             nwk = nexus.TREES.translate(tree) if nexus.TREES.TRANSLATE else tree.newick
             if remove_taxa:
                 nwk.prune_by_names(remove_taxa)
+            nwk.visit(rename)
             trees.append((tree.name, nwk, tree.rooted))
         nexus.replace_block(nexus.TREES, Trees.from_data(*trees))
 
     if taxlabels:
+        taxlabels = [rename_taxon(t) for t in taxlabels]
         taxa = Taxa.from_data([t for t in taxlabels if t not in remove_taxa])
         if nexus.TAXA:
             assert nexus.TAXA.DIMENSIONS.ntax == len(taxlabels)

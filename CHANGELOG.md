@@ -1,5 +1,10 @@
 # Changes
 
+## [Unreleased]
+
+- Support renaming taxa when normalising NEXUS.
+
+
 ## [v1.8.0] - 2023-11-16
 
 - Support writing NEXUS which is "more compatible" with some R packages.
