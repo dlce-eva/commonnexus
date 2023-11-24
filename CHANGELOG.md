@@ -1,5 +1,10 @@
 # Changes
 
+## [Unreleased]
+
+- Fixed support for writing comments.
+
+
 ## [v1.9.0] - 2023-11-17
 
 - Support renaming taxa when normalising NEXUS.

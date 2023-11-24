@@ -161,3 +161,18 @@ def test_Booleans_With_Values(fixture_dir):
 def test_Mesquite_multitaxa(fixture_dir):
     nex = Nexus.from_file(fixture_dir / 'multitaxa_mesquite.nex')
     assert [char.get_matrix() for char in nex.blocks['CHARACTERS']]
+
+
+def test_comments():
+    nex = Nexus('#NEXUS\n[comment]')
+    assert nex.comments == ['comment']
+    nex.append_block(Block.from_commands([], name='b', comment='block comment'))
+    assert nex.comments == ['comment', 'block comment']
+
+    with pytest.raises(ValueError):
+        nex = Nexus('#NEXUS\n[comment]]')
+        nex.validate()
+
+    with pytest.raises(ValueError):
+        nex = Nexus('#NEXUS\nBEGIN b; end;[comment]]')
+        nex.validate()

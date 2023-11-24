@@ -59,3 +59,23 @@ obtained by calling the generic factory method
 or specific implementations of `Block.from_data`, such as
 :meth:`commonnexus.blocks.characters.Characters.from_data` or
 :meth:`commonnexus.blocks.trees.Trees.from_data`
+
+
+Comments
+~~~~~~~~
+
+The ``from_data`` methods of blocks accept a keyword argument ``comment`` to add a comment to a
+block construct.
+
+To add a comment to the top of a NEXUS file, one can proceed as follows:
+
+.. code-block:: python
+
+    >>> nex = Nexus('#NEXUS\n[{}]\n'.format('Comment goes here'))
+    >>> nex.append_block(Block.from_commands([], name='theblock'))
+    >>> print(nex)
+    #NEXUS
+    [Comment goes here]
+
+    BEGIN theblock;
+    END;

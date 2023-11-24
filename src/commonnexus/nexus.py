@@ -5,6 +5,7 @@ import collections
 import dataclasses
 
 from .tokenizer import TokenType, iter_tokens, get_name
+from .util import log_or_raise
 from commonnexus.command import Command
 from commonnexus.blocks import Block
 
@@ -45,7 +46,7 @@ class Config:
 
 class Nexus(list):
     """
-    A NEXUS object implemented as list of tokens with methods to access newick constituents.
+    A NEXUS object implemented as list of commands with methods to read and write blocks.
 
     From the spec:
 
@@ -95,6 +96,7 @@ class Nexus(list):
         """
         self.cfg = config or Config(**kw)
         self.trailing_whitespace = []
+        self.leading = []
         self.block_implementations = {}
         for cls in Block.__subclasses__():
             self.block_implementations[cls.__name__.upper()] = cls
@@ -120,7 +122,10 @@ class Nexus(list):
                     if token.is_semicolon:
                         commands.append(Command(tuple(tokens)))
                         tokens = []
-            self.trailing_whitespace = tokens
+            if commands:
+                self.trailing_whitespace = tokens
+            else:
+                self.leading = tokens
             s = commands
         list.__init__(self, s)
 
@@ -211,6 +216,7 @@ class Nexus(list):
             END;
         """
         return NEXUS \
+            + ''.join(str(t) for t in self.leading) \
             + ''.join(''.join(str(t) for t in cmd) for cmd in self) \
             + ''.join(str(t) for t in self.trailing_whitespace)
 
@@ -224,8 +230,10 @@ class Nexus(list):
         p.write_text(text, encoding=self.cfg.encoding)
 
     def iter_comments(self):
+        yield from (t for t in self.leading if t.type == TokenType.COMMENT)
         for cmd in self:
             yield from (t for t in cmd if t.type == TokenType.COMMENT)
+        yield from (t for t in self.trailing_whitespace if t.type == TokenType.COMMENT)
 
     @property
     def comments(self) -> typing.List[str]:
@@ -262,6 +270,8 @@ class Nexus(list):
 
     def validate(self, log=None):
         valid = True
+        if any(t.type not in {TokenType.WHITESPACE, TokenType.COMMENT} for t in self.leading):
+            log_or_raise('Invalid token in preamble', log=log)
         for block in self.iter_blocks():
             #
             # FIXME: we can do a lot of validation here! If block.__commands__ is a list, there is
@@ -269,6 +279,9 @@ class Nexus(list):
             # If Payload.__multivalued__ == False, only one command instance is allowed, ...
             #
             valid = valid and block.validate(log=log)
+        if any(t.type not in {TokenType.WHITESPACE, TokenType.COMMENT}
+               for t in self.trailing_whitespace):
+            log_or_raise('Invalid token in text after the last command', log=log)
         return valid
 
     def get_numbers(self, object_name, items):
