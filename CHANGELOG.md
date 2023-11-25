@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.9.1] - 2023-11-25
 
 - Fixed support for writing comments.
 
