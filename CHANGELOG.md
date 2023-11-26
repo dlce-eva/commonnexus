@@ -1,6 +1,6 @@
 # Changes
 
-## [Unreleased]
+## [v1.9.2] - 2023-11-26
 
 - Fixed bug whereby charstate labels with illegal tokens were incorrectly read.
 - Fixed bug whereby the last charstate label was never detected as duplicate.
