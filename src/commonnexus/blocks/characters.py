@@ -549,10 +549,15 @@ class Charstatelabels(Payload):
                 if isinstance(w, Token) and w.text == '/':
                     in_states = True
                     continue
+                if name:
+                    raise ValueError(
+                        'Illegal token in charstatelabel: "{}{}"'.format(name, w))
                 name = w
             except StopIteration:
                 break
         if num:
+            if name and name in names:
+                duplicate_charlabel(name, 'CHARSTATELABELS', nexus)
             self.characters.append(types.SimpleNamespace(number=num, name=name, states=states))
         elif comma:  # There was a comma, but no new label.
             warnings.warn('Trailing comma in CHARSTATELABELS command')

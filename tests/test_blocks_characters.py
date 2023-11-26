@@ -267,3 +267,56 @@ def test_Data_with_mixed_charlabels(nexus):
     nex = nexus(DATA="DIMENSIONS NCHAR=2; CHARSTATELABELS 1 x, 2 ; MATRIX t1 1 1;")
     m = nex.characters.get_matrix()
     assert '2' in m['t1'], 'unspecified character label'
+
+
+def test_illegal_charstatelabel():
+    nex = Nexus("""\
+#NEXUS
+
+BEGIN DATA;
+    DIMENSIONS NTAX=3 NCHAR=3;
+    FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+    CHARSTATELABELS
+        1 hand_1,
+        2 burn(tr.)_3,
+        3 claw(nail)_3
+        ;
+MATRIX
+A   001
+B   000
+C   000
+;
+END;""")
+    with pytest.raises(ValueError) as e:
+        _ = nex.DATA.CHARSTATELABELS
+    assert 'burn(' in str(e)
+
+    with pytest.raises(ValueError):
+        nex.validate()
+
+
+def test_duplicate_charstatelabels():
+    nex = Nexus("""\
+#NEXUS
+
+BEGIN DATA;
+    DIMENSIONS NTAX=3 NCHAR=3;
+    FORMAT DATATYPE=STANDARD MISSING=? GAP=- SYMBOLS="01";
+    CHARSTATELABELS
+        1 hand_1,
+        2 _3,
+        3 _3
+        ;
+MATRIX
+A   001
+B   000
+C   000
+;
+END;""")
+    with warnings.catch_warnings(record=True) as w:
+        _ = nex.DATA.CHARSTATELABELS
+        assert len(w) == 1, 'Expected 1 warning, got %r' % w
+
+    nex.cfg.strict = True
+    with pytest.raises(ValueError):
+        _ = nex.DATA.CHARSTATELABELS

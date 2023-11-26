@@ -11,7 +11,7 @@ Punctuation
 
     The following punctuation marks have special properties: [ ] do not break a
     word; + and - are allowed as state symbols, but none of the rest are allowed; - is
-    considered punctuation except were it is the minus sign in a negative number.
+    considered punctuation except where it is the minus sign in a negative number.
 """
 import enum
 import itertools
