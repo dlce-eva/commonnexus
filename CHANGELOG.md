@@ -1,5 +1,11 @@
 # Changes
 
+
+## unreleased
+
+- Drop python 3.8 support, add python 3.13 support.
+
+
 ## [v1.9.2] - 2023-11-26
 
 - Fixed bug whereby charstate labels with illegal tokens were incorrectly read.
