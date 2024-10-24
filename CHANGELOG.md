@@ -3,7 +3,7 @@
 
 ## unreleased
 
-- Drop python 3.8 support, add python 3.13 support.
+- Add python 3.13 support.
 
 
 ## [v1.9.2] - 2023-11-26
