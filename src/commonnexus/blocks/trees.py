@@ -127,6 +127,25 @@ class Tree(Payload):
     NEXUS comment commands. The NEXUS standard places no restrictions on the number of taxa
     contained in each tree.
 
+    Sometimes, trees are annotated with additional information in a NEXUS comment such as
+
+    .. code-block::
+
+        TREE tree1 = [&R] [&clockrate=9.118820e-04] ((beetle,fly),spider);
+
+    Since comments may appear anywhere in NEXUS, this is valid content. However, such comments have
+    no semantics whatsoever; in particular they do not "belong" to any object, be it the Newick
+    tree or the NEXUS TREE wrapper. Instead, they are just added to the global list of comments in
+    a NEXUS file by `commonnexus`. Thus, to retrieve such a comment, one would have to search
+    through `Nexus.comments`, picking one that appears immediately after a `"&R"` comment:
+
+    .. code-block::
+
+        >>> from commonnexus import Nexus
+        >>> nex = Nexus('#nexus begin trees; tree 1 = [&R] [&clockrate] ((a,b)c); end;')
+        >>> nex.comments
+        ['&R', '&clockrate']
+
     :ivar str name: The name of the tree.
     :ivar typing.Union[bool, None] rooted: Flag indicating whether the tree is rooted (or `None` \
     if no information is given)
@@ -172,8 +191,11 @@ class Tree(Payload):
 
         while not nwk:
             t = next(tokens)
-            if t.type == TokenType.COMMENT and t.text.startswith('&'):
-                self._rooted = t.text
+            if t.type == TokenType.COMMENT:
+                if t.text.startswith('&') and t.text[1:] in {'U', 'R'}:
+                    self._rooted = t.text
+                else:
+                    pass
             if t.type == TokenType.PUNCTUATION and t.text == '(':
                 nwk = True
         assert nwk

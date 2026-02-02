@@ -23,6 +23,14 @@ def test_Trees(nexus):
     assert nex.TREES.translate(tree).newick == '((Scarabaeus,Drosophila),Aranaeus)'
 
 
+def test_Trees_with_leading_comment(nexus):
+    nex = nexus(
+        TAXA="TAXLABELS Scarabaeus Drosophila Aranaeus;",
+        TREES="TREE tree1 = [&R] [&clockrate=9.118820e-04] ((beetle,fly),spider);")
+    assert nex.TREES.TREE.rooted
+    assert '&clockrate=9.118820e-04' in nex.comments
+
+
 def test_Tree_translate_with_taxa_from_linked_block(nexus):
     nex = nexus(
         TAXA="TITLE x; TAXLABELS A B C;",
