@@ -7,9 +7,9 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = 'commonnexus'
-copyright = '2023, Robert Forkel'
+copyright = '2026, Robert Forkel'
 author = 'Robert Forkel'
-release = '1.9.3.dev0'
+release = '1.9.3'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

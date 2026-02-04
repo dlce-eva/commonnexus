@@ -1,9 +1,10 @@
 # Changes
 
 
-## unreleased
+## [v.1.9.3]
 
-- Add python 3.13 support.
+- Addressed issue with global annotations for trees being incorrectly parsed.
+- Run tests on Python 3.13 and 3.14.
 
 
 ## [v1.9.2] - 2023-11-26
