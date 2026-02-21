@@ -1,3 +1,7 @@
+"""
+Commands are the building blocks of NEXUS files.
+"""
+import typing
 import functools
 import itertools
 
@@ -13,17 +17,20 @@ class Command(tuple):
         or within a quoted token consisting of more than one text character.
     """
     @functools.cached_property
-    def name(self):
+    def name(self) -> str:
+        """Returns the name portion of the command text."""
         return get_name(self)
 
-    def __str__(self):
+    def __str__(self) -> str:
         return ''.join(str(t) for t in self)
 
-    def __eq__(self, other):  # To make command removal in Nexus.replace_block work.
+    def __eq__(self, other) -> bool:  # To make command removal in Nexus.replace_block work.
         return id(self) == id(other)
 
     @classmethod
-    def from_name_and_payload(cls, name, payload='', comment=None, in_block=False):
+    def from_name_and_payload(
+            cls, name: str, payload: str = '', comment: typing.Optional[str] = None) -> 'Command':
+        """Create a `Command` instance from its constituent text components."""
         tokens = []
         if comment:
             tokens.extend([Token('\n', TokenType.WHITESPACE), Token(comment, TokenType.COMMENT)])
@@ -60,7 +67,10 @@ class Command(tuple):
         """
         return Command(t for t in self if t.type != TokenType.COMMENT or t.text[0] in '&\\')
 
-    def with_normalised_whitespace(self):
+    def with_normalised_whitespace(self) -> 'Command':
+        """
+        Returns a `Command` instance based on the tokens of `self` but with normalised whitespace.
+        """
         comments, name, postcomments = [], [], []
         i, j = -1, -1
         for i, token in enumerate(self):
@@ -93,15 +103,21 @@ class Command(tuple):
 
     @property
     def is_beginblock(self) -> bool:
+        """Signals whether the command is the command beginning a block."""
         return self.name == 'BEGIN'
 
     @property
     def is_endblock(self) -> bool:
+        """Signals whether the command is the command ending a block."""
         # In MacClade, PAUP, and COMPONENT, the ENDBLOCK command has been used as
         # a synonym of the END command.
         return self.name in ['END', 'ENDBLOCK']
 
-    def iter_payload_tokens(self, type=None):
+    def iter_payload_tokens(
+            self,
+            type: TokenType = None  # pylint: disable=redefined-builtin
+    ) -> typing.Generator[Token, None, None]:
+        """Generate the payload tokens of a command, i.e. tokens after the name of the command."""
         found = False
         for t in itertools.dropwhile(
                 lambda t: t.type != TokenType.WHITESPACE,

@@ -50,3 +50,15 @@ def test_iter_delimited(start, string, length, allow_single_word):
         iter_words_and_punctuation(iter_tokens(iter(string))),
         allow_single_word=allow_single_word))
     assert len(res) == length
+
+
+@pytest.mark.parametrize(
+    's,expected',
+    [
+        ('a=1', [('a', ['1'])]),
+        ('a=(1 2)', [('a', ['1', '2'])]),
+        ('a=(1 2) b=3', [('a', ['1', '2']), ('b', ['3'])]),
+    ]
+)
+def test_iter_key_value_pairs(s, expected):
+    assert list(iter_key_value_pairs(iter_tokens(iter(s)))) == expected

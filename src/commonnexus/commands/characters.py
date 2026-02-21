@@ -4,32 +4,26 @@ Manipulate the CHARACTERS (or DATA) block of a NEXUS file.
 Note: Only one option can be chosen at a time.
 """
 import collections
-from enum import Enum
 
 from commonnexus import Nexus
 from commonnexus.blocks.characters import Characters, GAP
 from commonnexus.tools.matrix import CharacterMatrix
 from commonnexus.tools.combine import combine
-from commonnexus.cli_util import add_nexus, add_flag, validate_operations, list_of_ranges
+from commonnexus.cli_util import add_nexus, add_flag, validate_operations, list_of_ranges, Operation
 
 
-class Ops(Enum):
-    binarise = 1
-    multistatise = 2
-    convert = 3
-    drop = 4
-    drop_numbered = 5
-    describe = 6
-
-
+#
+# It's somewhat hacky to model operations as options rather than as sub(sub)commands, considering
+# that only one can be chosen.
+#
 def register(parser):
     add_nexus(parser)
     add_flag(
         parser,
-        Ops.binarise.name,
-        help="Recode a matrix such that it only contains binary characters.")
+        Operation.binarise.name,
+        help_="Recode a matrix such that it only contains binary characters.")
     parser.add_argument(
-        '--' + Ops.multistatise.name,
+        '--' + Operation.multistatise.name,
         metavar="GROUPKEY",
         default=None,
         help="Recode a matrix such that it only contains one multistate characters for each "
@@ -37,25 +31,25 @@ def register(parser):
              "character label and returning a key (or a string to group all characters into one "
              "multistate character labeled with this string).")
     parser.add_argument(
-        '--' + Ops.convert.name,
+        '--' + Operation.convert.name,
         choices=['fasta', 'phylip'],
         help="Convert a matrix to another sequence format.")
     parser.add_argument(
-        '--' + Ops.drop.name,
+        '--' + Operation.drop.name,
         help="Drop specified characters from a matrix.",
         choices='constant polymorphic uncertain missing gapped'.split())
     parser.add_argument(
-        '--' + Ops.drop_numbered.name.replace('_', '-'),
+        '--' + Operation.drop_numbered.name.replace('_', '-'),
         type=list_of_ranges,
         help="Drop characters specified by (ranges of) numbers from a matrix.")
     parser.add_argument(
-        '--' + Ops.describe.name,
+        '--' + Operation.describe.name,
         help="",
         choices=['binary-setsize', 'binary-unique', 'binary-constant', 'states-distribution'])
 
 
 def run(args):
-    validate_operations(Ops, args)
+    validate_operations(args)
     new = None
     if args.binarise:
         if args.nexus.characters.FORMAT:  # pragma: no cover

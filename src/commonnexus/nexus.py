@@ -1,13 +1,17 @@
+"""
+Provides a class representing a NEXUS file as list of tokens.
+"""
 import typing
+import logging
 import pathlib
 import itertools
 import collections
 import dataclasses
 
-from .tokenizer import TokenType, iter_tokens, get_name
-from .util import log_or_raise
-from commonnexus.command import Command
 from commonnexus.blocks import Block
+from commonnexus.command import Command
+from .tokenizer import TokenType, Token, iter_tokens, get_name
+from .util import log_or_raise
 
 __all__ = ['Config', 'Nexus']
 
@@ -133,7 +137,7 @@ class Nexus(list):
     def from_file(cls,
                   p: typing.Union[str, pathlib.Path],
                   config: typing.Optional[Config] = None,
-                  **kw) -> 'Nexus':
+                  **kw) -> typing.Optional['Nexus']:
         """
         Instantiate a `Nexus` object from the contents of a NEXUS file.
 
@@ -152,13 +156,15 @@ class Nexus(list):
                 not_utf8 = config.encoding == 'utf8'
         if not_utf8:
             # We don't want to do a lot of guessing, but if the default encoding was tried and
-            # didn't work, we try with the old-time favourite "latin1":
+            # didn't work, we try with the all-time favourite "latin1":
             config.encoding = 'latin1'
             with p.open(encoding=config.encoding) as f:
                 return cls(itertools.chain.from_iterable(f), config=config)
+        return None  # pragma: no cover
 
     @classmethod
-    def from_blocks(cls, *blocks):
+    def from_blocks(cls, *blocks) -> 'Nexus':
+        """Initializes a `Nexus` instance from a list of blocks."""
         res = cls()
         for block in blocks:
             res.append_block(block)
@@ -220,7 +226,7 @@ class Nexus(list):
             + ''.join(''.join(str(t) for t in cmd) for cmd in self) \
             + ''.join(str(t) for t in self.trailing_whitespace)
 
-    def to_file(self, p: typing.Union[str, pathlib.Path]):
+    def to_file(self, p: typing.Union[str, pathlib.Path]) -> None:
         """
         Write the NEXUS content of a `Nexus` object to a file.
         """
@@ -229,7 +235,8 @@ class Nexus(list):
         text += '\n' if not text.endswith('\n') else ''
         p.write_text(text, encoding=self.cfg.encoding)
 
-    def iter_comments(self):
+    def iter_comments(self) -> typing.Generator[Token, None, None]:
+        """Generator for all comments in the NEXUS file."""
         yield from (t for t in self.leading if t.type == TokenType.COMMENT)
         for cmd in self:
             yield from (t for t in cmd if t.type == TokenType.COMMENT)
@@ -254,27 +261,31 @@ class Nexus(list):
         """
         return [t.text for t in self.iter_comments()]
 
-    def iter_blocks(self):
-        block = None
+    def iter_blocks(self) -> typing.Generator[Block, None, None]:
+        """A generator for the blocks in the NEXUS file."""
+        block: typing.List[Command] = []
         for command in itertools.dropwhile(lambda c: not c.is_beginblock, self):
             if command.is_endblock:
+                assert block
                 block.append(command)
                 # Look up a suitable Block implementation.
                 name = get_name(block[0].iter_payload_tokens())
                 yield self.block_implementations.get(name, Block)(self, block)
-                block = None
+                block = []
             elif command.is_beginblock:
                 block = [command]
-            elif block is not None:
+            elif block:
                 block.append(command)
 
-    def validate(self, log=None):
+    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
+        """Validates the NEXUS file."""
         valid = True
         if any(t.type not in {TokenType.WHITESPACE, TokenType.COMMENT} for t in self.leading):
             log_or_raise('Invalid token in preamble', log=log)
         for block in self.iter_blocks():
             #
-            # FIXME: we can do a lot of validation here! If block.__commands__ is a list, there is
+            # FIXME: pylint: disable=fixme
+            # we can do a lot of validation here! If block.__commands__ is a list, there is
             # some fixed order between commands.
             # If Payload.__multivalued__ == False, only one command instance is allowed, ...
             #
@@ -284,7 +295,7 @@ class Nexus(list):
             log_or_raise('Invalid token in text after the last command', log=log)
         return valid
 
-    def get_numbers(self, object_name, items):
+    def get_numbers(self, object_name: str, items) -> typing.List[str]:
         """
         Determine object numbers suitable for inclusion in a set spec.
         """
@@ -292,7 +303,7 @@ class Nexus(list):
             return [str(i + 1) for i, tax in enumerate(self.taxa)
                     if (tax in items) or (str(i + 1) in items)]
         if object_name == 'CHARACTER':
-            charlabels, statelabels = self.characters.get_charstatelabels()
+            charlabels, _ = self.characters.get_charstatelabels()
             return [str(i) for i, label in charlabels.items()
                     if (label in items) or (str(i) in items)]
         if object_name == 'TREE':
@@ -300,7 +311,12 @@ class Nexus(list):
                     if (tree.name in items) or (str(i + 1) in items)]
         raise NotImplementedError(object_name)  # pragma: no cover
 
-    def resolve_set_spec(self, object_name, spec, chars=None):
+    def resolve_set_spec(
+            self,
+            object_name: str,
+            spec: typing.List[str],
+            chars: typing.Optional[typing.List[str]] = None
+    ) -> typing.Optional[typing.List[str]]:
         """
         Resolve a set spec to a list of included items, specified by label or number.
 
@@ -308,20 +324,21 @@ class Nexus(list):
         :param spec:
         :return:
         """
-        def numbers(maxn):
+        def numbers(maxn: int) -> typing.List[int]:
+            """Turns a set spec into a list of item numbers."""
             res = []
-            start, r = None, False
+            start, in_range = None, False
             for token in spec:
                 if not start:
                     start = token
                 else:
                     if token == '-':
-                        r = True
+                        in_range = True
                     else:
-                        if r:
+                        if in_range:  # Figure out the end of the range and append items.
                             res.extend(list(
                                 range(int(start), int(token if token != '.' else maxn) + 1)))
-                            r, start = False, None
+                            in_range, start = False, None
                         else:
                             res.append(int(start))
                             start = token
@@ -331,24 +348,24 @@ class Nexus(list):
 
         object_name = object_name.upper()
         assert object_name in ['TAXON', 'CHARACTER', 'STATE', 'TREE']
+
+        # Now we determine the available labels for the object type.
         n, labels = None, None
         if object_name == 'TAXON':
             if self.TAXA:
-                # FIXME: What if there's more than one TAXA block?
+                # FIXME: What if there's more than one TAXA block?  pylint: disable=fixme
                 n = self.TAXA.DIMENSIONS.ntax
                 labels = self.TAXA.TAXLABELS.labels
             elif self.CHARACTERS and self.CHARACTERS.DIMENSIONS.newtaxa:
                 n = self.CHARACTERS.DIMENSIONS.ntax
                 if self.CHARACTERS.TAXLABELS:
                     labels = self.CHARACTERS.TAXLABELS.labels
-
-        if object_name == 'CHARACTER':
+        elif object_name == 'CHARACTER':
             block = self.CHARACTERS or self.DATA
             if block:
                 labels, _ = block.get_charstatelabels()
                 n = len(labels)
-
-        if object_name == 'STATE':
+        elif object_name == 'STATE':
             chars = chars or []  # Labeled states make only sense in relation to characters.
             block = self.CHARACTERS or self.DATA
             if block:
@@ -360,9 +377,8 @@ class Nexus(list):
                         res[char] = [
                             label or state for state, label in states.items() if state in spec]
                 return res
-            return  # pragma: no cover
-
-        if object_name == 'TREE':
+            return None  # pragma: no cover
+        elif object_name == 'TREE':
             labels = {i + 1: tree.name for i, tree in enumerate(self.TREES.trees)}
 
         if not labels:
@@ -370,20 +386,29 @@ class Nexus(list):
             labels = {i + 1: str(i + 1) for i in range(n)}
         return [labels[n] for n in numbers(n)]
 
-    def remove_block(self, block: Block):
+    def remove_block(self, block: Block) -> None:
+        """Removes a block from the NEXUS file."""
         for cmd in block:
             self.remove(cmd)
 
-    def append_block(self, block: Block):
+    def append_block(self, block: Block) -> None:
+        """Adds a new block at the end of the NEXUS file."""
         self.extend(block)
 
-    def prepend_block(self, block: Block):
+    def prepend_block(self, block: Block) -> None:
+        """Adds a new block at the beginning of the NEXUS file."""
         for cmd in reversed(block):
             self.insert(0, cmd)
 
     def replace_block(self,
                       old: Block,
-                      new: typing.Union[Block, typing.List[typing.Tuple[str, str]]]):
+                      new: typing.Union[Block, typing.List[typing.Tuple[str, str]]]) -> None:
+        """
+        Replace a block.
+
+        The new block can be specified either a `Block` instance or as list of (name, payload)
+        pairs which will be taken to construct the commands within the new block.
+        """
         bname = old.name
         for i, cmd in enumerate(self):
             if cmd is old[0]:
@@ -404,7 +429,8 @@ class Nexus(list):
                 self.insert(i, Command.from_name_and_payload(n, payload))
             self.insert(i, Command.from_name_and_payload('BEGIN', bname))
 
-    def append_command(self, block, name, payload=None):
+    def append_command(self, block: Block, name: str, payload: str = None) -> None:
+        """Append a command at the end of the block (before the block's END command)."""
         self.insert(
             self.index(block[-1]),
             Command.from_name_and_payload(name, payload))
@@ -461,3 +487,4 @@ class Nexus(list):
             if self.TREES.TRANSLATE:
                 return list(self.TREES.TRANSLATE.mapping.values())
             return [node.name for node in self.TREES.TREE.newick.walk() if node.name]
+        return None

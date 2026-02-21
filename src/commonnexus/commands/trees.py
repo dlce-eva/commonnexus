@@ -54,7 +54,7 @@ def register(parser):
 
 
 def run(args):
-    validate_operations(Ops, args)
+    validate_operations(args)
     if args.describe:
         args.log.info('Trees\nindex\tname\trooted')
         for i, tree in enumerate(args.nexus.TREES.trees, start=1):

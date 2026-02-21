@@ -35,6 +35,7 @@ for s in 'no 0 false'.split():
 
 
 class TokenType(enum.Enum):
+    """Types of tokens that must be distinguished to interpret NEXUS."""
     WORD = 1
     QWORD = 2
     COMMENT = 3
@@ -42,7 +43,7 @@ class TokenType(enum.Enum):
     WHITESPACE = 5
 
 
-@dataclasses.dataclass
+@dataclasses.dataclass(frozen=True)
 class Token:
     """
     We parse Nexus in one pass, storing the data as list of tokens with enough
@@ -53,92 +54,112 @@ class Token:
     type: TokenType
 
     @classmethod
-    def from_text(cls, tokens, type=None):
+    def from_text(
+            cls,
+            tokens: typing.List[str],
+            type: typing.Union[TokenType, None] = None,  # pylint: disable=redefined-builtin
+    ) -> 'Token':
+        """Create a token form a list of characters."""
         return cls(
             text=''.join(tokens),
             type=type or (TokenType.WHITESPACE if tokens[-1] in WHITESPACE else TokenType.WORD))
 
     @property
-    def is_semicolon(self):
+    def is_semicolon(self) -> bool:
+        """Signals whether the token is a semicolon."""
         return self.type == TokenType.PUNCTUATION and self.text == ';'
 
     @property
-    def is_whitespace(self):
+    def is_whitespace(self) -> bool:
+        """Signals whether the token is whitespace."""
         return self.type == TokenType.WHITESPACE
 
     @property
-    def is_newline(self):
+    def is_newline(self) -> bool:
+        """Signals whether the token is a newline."""
         return self.is_whitespace and any(c in self.text for c in '\r\n')
 
     @property
-    def is_punctuation(self):
+    def is_punctuation(self) -> bool:
+        """Signals whether the token is punctuation."""
         return self.type == TokenType.PUNCTUATION
 
     def __str__(self):
         if self.type == TokenType.COMMENT:
-            return '[{}]'.format(self.text)
+            return f'[{self.text}]'
         if self.type == TokenType.QWORD:
-            return "{}{}{}".format(QUOTE, self.text.replace(QUOTE, QUOTE + QUOTE), QUOTE)
+            return f"{QUOTE}{self.text.replace(QUOTE, QUOTE + QUOTE)}{QUOTE}"
         return self.text
 
 
-def iter_tokens(s):
+def _get_comment(s_iter: typing.Iterator[str]) -> typing.Tuple[str, typing.List[str]]:
+    """Read the next comment from s_iter."""
+    token = []
+    commentlevel = 1
+    while 1:
+        c = next(s_iter)
+        while c not in COMMENT:
+            token.append(c)
+            c = next(s_iter)
+        commentlevel += COMMENT[c]
+        if commentlevel == 0:
+            return c, token
+        token.append(c)
+
+
+def _get_quoted(
+        s_iter: typing.Iterator[str],
+        lookahead: typing.Union[str, None]
+) -> typing.Tuple[str, str, typing.List[str]]:
+    """Read up to the next unquoted quote from s_iter."""
+    doublequote = False
+    token = []
+    while 1:  # Consume s up to the next (non-quoted) quote character.
+        c = lookahead or next(s_iter)
+        lookahead = None
+        while c != QUOTE:
+            token.append(c)
+            c = next(s_iter)
+
+        if doublequote:
+            token.append(c)
+            doublequote = False
+        else:
+            try:
+                lookahead = next(s_iter)
+            except StopIteration:
+                lookahead = None
+            if lookahead == QUOTE:
+                doublequote = True
+            else:  # End of quoted string
+                return c, lookahead, token
+
+
+def iter_tokens(s_iter: typing.Iterator[str]) -> typing.Generator[Token, None, None]:
+    """Turn iterator of characters into tokens."""
     token, lookahead = [], None
 
     while True:
         try:
-            c = lookahead or next(s)
+            c = lookahead or next(s_iter)
             lookahead = None
 
             if c == QUOTE:  # A quoted string.
-                doublequote = False
                 if token:
-                    if token[-1] in WHITESPACE:
-                        yield Token.from_text(token, TokenType.WHITESPACE)
-                    else:
-                        raise ValueError()  # pragma: no cover
+                    assert token[-1] in WHITESPACE, 'No whitespace before start quote!'
+                    yield Token.from_text(token, TokenType.WHITESPACE)
                     token = []
-
-                while 1:
-                    c = lookahead or next(s)
-                    lookahead = None
-                    while c != QUOTE:
-                        token.append(c)
-                        c = next(s)
-
-                    if doublequote:
-                        token.append(c)
-                        doublequote = False
-                    else:
-                        try:
-                            lookahead = next(s)
-                        except StopIteration:
-                            lookahead = None
-                        if lookahead == QUOTE:
-                            doublequote = True
-                        else:  # End of quoted string
-                            yield Token.from_text(token, type=TokenType.QWORD)
-                            token = []
-                            break
+                # Consume everything up to the next unquoted quote.
+                c, lookahead, res = _get_quoted(s_iter, lookahead)
+                yield Token.from_text(res, type=TokenType.QWORD)
                 continue
 
             if c == '[':  # A comment.
                 if token:
                     yield Token.from_text(token)
                     token = []
-                commentlevel = 1
-                while 1:
-                    c = next(s)
-                    while c not in COMMENT:
-                        token.append(c)
-                        c = next(s)
-                    commentlevel += COMMENT[c]
-                    if commentlevel == 0:
-                        yield Token.from_text(token, TokenType.COMMENT)
-                        token = []
-                        break
-                    else:
-                        token.append(c)
+                c, res = _get_comment(s_iter)
+                yield Token.from_text(res, TokenType.COMMENT)
                 continue
 
             if c in WHITESPACE:
@@ -167,15 +188,18 @@ def iter_tokens(s):
         yield Token.from_text(token)
 
 
-def get_name(tokens):
+def get_name(tokens: typing.Iterable[Token]) -> str:
     """
+    Returns the first word in tokens.
+
     The Nexus spec allows comments **in** block or command names. This function takes this into
     account when assembling a name from an iterable of tokens.
     """
     res = ''
     for t in itertools.dropwhile(lambda t: t.type != TokenType.WORD, tokens):
         if res:
-            # We already encountered one word.
+            # We already encountered one word, but we're still in the loop, so there must have been
+            # an interspersed comment.
             if t.type == TokenType.WORD:
                 res += t.text
             elif t.type != TokenType.COMMENT:
@@ -186,22 +210,40 @@ def get_name(tokens):
 
 
 class Word(str):
+    """
+    Words are considered tokens in NEXUS that may need to be quoted.
+    """
     def __eq__(self, other):
         return self.replace(' ', '_') == other.replace(' ', '_') \
             if isinstance(other, str) else False
 
-    def as_nexus_string(self):
+    def as_nexus_string(self) -> str:
+        """Return the word in a way suitable for inclusion in a NEXUS file."""
         must_quote = False
         for chars in [WHITESPACE, COMMENT, PUNCTUATION, QUOTE]:
             if any(c in self for c in chars):
                 must_quote = True
                 break
         if must_quote:
-            return "{}{}{}".format(QUOTE, self.replace(QUOTE, QUOTE + QUOTE), QUOTE)
+            return f"{QUOTE}{self.replace(QUOTE, QUOTE + QUOTE)}{QUOTE}"
         return self
 
     def __hash__(self):
         return hash(str(self))
+
+
+def get_allowed_punctuation(
+        allow_punctuation_in_word: typing.Union[str, None],
+        nexus,
+) -> str:
+    """Aggregate all punctuation which may appear in words according to NEXUS spec of config."""
+    allow_punctuation_in_word = allow_punctuation_in_word or ''
+    if nexus is not None:
+        if nexus.cfg.hyphenminus_is_text:
+            allow_punctuation_in_word += '-'
+        if nexus.cfg.asterisk_is_text:
+            allow_punctuation_in_word += "*"
+    return allow_punctuation_in_word
 
 
 def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=None):
@@ -238,14 +280,9 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=Non
         '- - A single word', whereas "two()words" consists of four tokens: the word "two",
         two punctuation characters, and the word "words".
     """
-    allow_punctuation_in_word = allow_punctuation_in_word or ''
-    if nexus is not None:
-        if nexus.cfg.hyphenminus_is_text:
-            allow_punctuation_in_word += '-'
-        if nexus.cfg.asterisk_is_text:
-            allow_punctuation_in_word += "*"
+    allow_punctuation_in_word = get_allowed_punctuation(allow_punctuation_in_word, nexus)
     word = ''
-    for i, token in enumerate(tokens):
+    for token in tokens:
         if token.type == TokenType.QWORD:
             assert not word
             yield token.text
@@ -267,53 +304,76 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=Non
         yield Word(word)
 
 
-def iter_key_value_pairs(tokens, allow_punctuation_in_word=None):
+def iter_key_value_pairs(
+        tokens,
+        allow_punctuation_in_word=None
+) -> typing.Generator[typing.Tuple[str, typing.List[typing.Union[str, Token]]], None, None]:
     """
     :param tokens:
     :param allow_punctuation_in_word:
     :return:
     """
-    key, e, value, b = None, False, [], False
+    @dataclasses.dataclass
+    class PairState:
+        """Records the state of parsing one key-value pair."""
+        key: str = None
+        equals_seen: bool = False
+        value: typing.List[typing.Union[str, Token]] = dataclasses.field(default_factory=list)
+        in_braces: bool = False
+
+        def feed(self, token) -> typing.Union[None, typing.Tuple[str, typing.List[str]]]:
+            """Consume a token and update the state accordingly."""
+            if self.key is None:  # We first need to find a key ...
+                assert isinstance(token, str)
+                self.key = token
+                return None
+
+            if not self.equals_seen:  # ... then the equals sign ...
+                assert isinstance(token, Token) and token.text == '='
+                self.equals_seen = True
+                return None
+
+            if isinstance(token, Token):
+                if token.text == '(':
+                    assert not self.value
+                    self.in_braces = True
+                elif token.text == ')':
+                    assert self.in_braces, 'No corresponding left brace'
+                    return (self.key, self.value)
+                else:
+                    assert self.in_braces, 'No left brace'
+                    self.value.append(token.text)
+            else:
+                if self.in_braces:
+                    self.value.append(token)
+                else:
+                    assert not self.value, 'Value already encountered'
+                    return self.key, [token]
+            return None
+
     #
-    # FIXME: need to pass nexus to iter_words_and_punctuation
+    # FIXME: need to pass nexus to iter_words_and_punctuation  # pylint: disable=fixme
     #
+    state = PairState()
     for t in iter_words_and_punctuation(
             tokens, allow_punctuation_in_word=allow_punctuation_in_word):
-        if key is None:
-            assert isinstance(t, str)
-            key = t
-        elif not e:
-            assert isinstance(t, Token) and t.text == '='
-            e = True
-        else:
-            if isinstance(t, Token):
-                if t.text == '(':
-                    assert not value
-                    b = True
-                elif t.text == ')':
-                    assert b
-                    yield key, value
-                    key, e, value, b = None, False, [], False
-                else:
-                    assert b
-                    value.append(t.text)
-            else:
-                if b:
-                    value.append(t)
-                else:
-                    assert not value
-                    yield key, [t]
-                    key, e, value, b = None, False, [], False
+        res = state.feed(t)
+        if res:
+            yield res
+            state = PairState()
+        continue
 
 
-def word_after_equals(words_and_punctuation: typing.Generator) -> str:
+def word_after_equals(words_and_punctuation: typing.Iterator[typing.Union[Token, str]]) -> str:
+    """Return the first word token after an equals sign."""
     n = next(words_and_punctuation)
     assert n.text == '='
     res = next(words_and_punctuation)
     return res if isinstance(res, str) else res.text
 
 
-def iter_lines(tokens):
+def iter_lines(tokens: typing.Iterable[Token]) -> typing.Generator[typing.List[Token], None, None]:
+    """Generates lines, i.e. lists of tokens separated by newline tokens in the input."""
     line = []
     for t in tokens:
         if t.is_newline:
@@ -327,7 +387,13 @@ def iter_lines(tokens):
             yield line
 
 
-def iter_delimited(start, words_and_punctuation, delimiter='"', allow_single_word=False):
+def iter_delimited(
+        start: typing.Union[str, None],
+        words_and_punctuation: typing.Iterator[Token],
+        delimiter='"',
+        allow_single_word=False,
+) -> typing.Generator[typing.Union[str, Token], None, None]:
+    """Generates tokens delimited by specific delimiters."""
     startchar = delimiter[0]
     endchar = startchar if len(delimiter) == 1 else delimiter[1]
 
@@ -336,10 +402,16 @@ def iter_delimited(start, words_and_punctuation, delimiter='"', allow_single_wor
             yield start
             return
         raise ValueError("No delimiter found!")  # pragma: no cover
-    else:
-        start = start or next(words_and_punctuation)
-        assert getattr(start, 'text', start) == startchar
-        w = next(words_and_punctuation)
-        while not (isinstance(w, Token) and w.text == endchar):
-            yield w
-            w = next(words_and_punctuation)
+
+    start = start or next(words_and_punctuation, None)
+    if start is None:
+        return  # pragma: no cover
+    assert getattr(start, 'text', start) == startchar
+    w = next(words_and_punctuation, None)
+    if w is None:
+        return  # pragma: no cover
+    while not (isinstance(w, Token) and w.text == endchar):
+        yield w
+        w = next(words_and_punctuation, None)
+        if w is None:
+            return  # pragma: no cover

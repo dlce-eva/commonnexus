@@ -1,3 +1,6 @@
+"""
+CLI for functionality to manipulate NEXUS files.
+"""
 import sys
 import logging
 import pathlib
@@ -7,9 +10,11 @@ import contextlib
 
 import commonnexus
 import commonnexus.commands
+from commonnexus.cli_util import ParserError
 
 
-def get_log(name, level=logging.INFO) -> logging.Logger:
+def get_log(name: str, level=logging.INFO) -> logging.Logger:
+    """Provide a logger with appropriate configuration."""
     logging.basicConfig(level=level)
     log = logging.getLogger(name)
     handler = logging.StreamHandler(stream=sys.stderr)
@@ -21,7 +26,7 @@ def get_log(name, level=logging.INFO) -> logging.Logger:
     return log
 
 
-class Logging(object):
+class Logging:
     """
     A context manager to execute a block of code at a specific logging level.
     """
@@ -53,16 +58,16 @@ class Logging(object):
 
 
 class Formatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
-    pass
+    """CLI help formatter."""
 
 
 def main(args=None, catch_all=False, parsed_args=None, log=None):
-    from commonnexus.cli_util import ParserError
+    """Main command of the CLI."""
 
     parser = argparse.ArgumentParser(
         prog=commonnexus.__name__,
-        description="{} {} is a set of commands to manipulate of files in the NEXUS "
-                    "file format.".format(commonnexus.__name__, commonnexus.__version__),
+        description=f"{commonnexus.__name__} {commonnexus.__version__} is a set of commands to "
+                    f"manipulate of files in the NEXUS file format.",
         epilog='See https://github.com/dlce-eva/commonnexus for details.',
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     # Make logging configurable:
@@ -70,25 +75,25 @@ def main(args=None, catch_all=False, parsed_args=None, log=None):
     parser.add_argument(
         '--log-level',
         default=logging.INFO,
-        help='log level [ERROR {}|WARNING {}|INFO {}|DEBUG {}]'.format(
-            logging.ERROR, logging.WARNING, logging.INFO, logging.DEBUG),
+        help=f'log level [ERROR {logging.ERROR}|WARNING {logging.WARNING}|INFO {logging.INFO}|'
+             f'DEBUG {logging.DEBUG}]',
         type=lambda x: getattr(logging, x))
     # Register subcommands:
     subparsers = parser.add_subparsers(
         title="available commands",
-        dest="_command",
-        description='Run "{} COMAMND -h" to get help for a specific command.'.format(
-            commonnexus.__name__),
+        dest="command",
+        description=f'Run "{commonnexus.__name__} COMAMND -h" to get help for a specific command.',
         metavar="COMMAND")
     for p in sorted(
             pathlib.Path(__file__).parent.joinpath('commands').glob('*.py'),
             key=lambda pp: pp.stem):
         if p.stem == '__init__':
             continue
-        mod = importlib.import_module('.{}'.format(p.stem), commonnexus.commands.__name__)
-        help = mod.help() if hasattr(mod, 'help') else mod.__doc__
+        mod = importlib.import_module(f'.{p.stem}', commonnexus.commands.__name__)
+        help_ = mod.help() if hasattr(mod, 'help') else mod.__doc__
         subparser = subparsers.add_parser(
-            p.stem, help=help.strip().splitlines()[0], description=help, formatter_class=Formatter)
+            p.stem,
+            help=help_.strip().splitlines()[0], description=help_, formatter_class=Formatter)
         if hasattr(mod, 'register'):
             mod.register(subparser)
         subparser.set_defaults(main=mod.run)
@@ -110,7 +115,7 @@ def main(args=None, catch_all=False, parsed_args=None, log=None):
             return 0
         except ParserError as e:  # pragma: no cover
             print(str(e))
-            return main([args._command, '-h'])
+            return main([args.command, '-h'])
         except Exception as e:  # pragma: no cover
             if catch_all:
                 print(e)

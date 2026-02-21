@@ -1,10 +1,12 @@
 import io
 import shlex
 import logging
+import argparse
 
 import pytest
 
 from commonnexus.__main__ import main as cli
+from commonnexus.cli_util import validate_operations, ParserError, list_of_ranges
 from commonnexus import Nexus
 
 
@@ -257,3 +259,26 @@ def test_trees_rename(main, capsys):
     main("""trees --rename "lambda x: '{}1'.format(x[0])" "#nexus begin trees; translate a x, b y, c z; tree xy = (a[c],b); end;" """)
     out, _ = capsys.readouterr()
     assert 'x1' in out
+
+
+def test_validate_operation():
+    with pytest.raises(ParserError):
+        validate_operations(argparse.Namespace(binarise=True, drop=True))
+
+
+@pytest.mark.parametrize(
+    's,expected',
+    [
+        ('', []),
+        ('1', [1]),
+        ('1:3', [1, 2, 3]),
+        ('1,1:3', [1, 1, 2, 3]),
+    ]
+)
+def test_list_of_ranges(s, expected):
+    assert list_of_ranges(s) == expected
+
+
+def test_list_of_ranges_invalid():
+    with pytest.raises(argparse.ArgumentTypeError):
+        list_of_ranges('x')

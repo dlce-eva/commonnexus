@@ -3,6 +3,7 @@ Utility functions used to implement `commonnexus` subcommands.
 """
 import re
 import sys
+import enum
 import typing
 import pathlib
 import argparse
@@ -12,11 +13,21 @@ from commonnexus import Nexus
 NEXUS = re.compile(r'(?:^|(?<=;|\s))(#nexus)', re.IGNORECASE | re.MULTILINE)
 
 
+class Operation(enum.Enum):
+    """Operations on character matrices or trees."""
+    binarise = 1  # pylint: disable=invalid-name
+    multistatise = 2  # pylint: disable=invalid-name
+    convert = 3  # pylint: disable=invalid-name
+    drop = 4  # pylint: disable=invalid-name
+    drop_numbered = 5  # pylint: disable=invalid-name
+    describe = 6  # pylint: disable=invalid-name
+
+
 class ParserError(Exception):
-    pass
+    """Exception to be raised when CLI input validation fails."""
 
 
-class NexusType:
+class NexusType:  # pylint: disable=too-few-public-methods
     """
     :class:`Ǹexus` as `Argument type <https://docs.python.org/3/library/argparse.html#type>`_
 
@@ -81,21 +92,30 @@ def add_nexus(parser, many=False):
             type=NexusType())
 
 
-def add_flag(parser, name, help):
-    parser.add_argument('--{}'.format(name), action='store_true', default=False, help=help)
+def add_flag(parser: argparse.ArgumentParser, name: str, help_: str) -> None:
+    """Add a flag, i.e. a boolean option, defaulting to False."""
+    parser.add_argument(f'--{name}', action='store_true', default=False, help=help_)
 
 
-def add_rename(parser, what):
+def lambda_or_tuple(s: str) -> typing.Union[typing.Tuple[str, ...], typing.Callable[[str], str]]:
+    """Parse rename option - either a lambda function or a mapping 'old,new'."""
+    if s.startswith('lambda'):
+        return eval(s)  # pylint: disable=eval-used
+    return tuple(s.split(',', maxsplit=1))
+
+
+def add_rename(parser: argparse.ArgumentParser, what: str) -> None:
+    """Add a 'rename' option."""
     parser.add_argument(
         '--rename',
-        help="Rename a {0} specified as 'old,new' where 'old' is the current name or number and "
-             "'new' is the new name or as Python lambda function accepting a {0} label as input."
-             "".format(what),
-        type=lambda s: eval(s) if s.startswith('lambda') else tuple(s.split(',', maxsplit=1)),
+        help=f"Rename a {what} specified as 'old,new' where 'old' is the current name or number "
+             f"and 'new' is the new name or as Python lambda function accepting a {what} label as "
+             f"input.",
+        type=lambda_or_tuple,
         default=None)
 
 
-def list_of_ranges(dstring) -> typing.List[int]:
+def list_of_ranges(dstring: str) -> typing.List[int]:
     """
     Converts a comma-separated list of 1-based ranges into a list of 1-based indices.
 
@@ -106,20 +126,23 @@ def list_of_ranges(dstring) -> typing.List[int]:
     def _int(v):
         try:
             return int(v)
-        except ValueError:  # pragma: no cover
-            raise argparse.ArgumentTypeError("%r is not an integer" % v)
+        except ValueError as exc:  # pragma: no cover
+            raise argparse.ArgumentTypeError(f"{v} is not an integer") from exc
 
     out = []
+    if not dstring:
+        return out
     for token in dstring.split(','):
         token = token.replace(':', '-')
         if '-' in token:
             start, stop = token.split("-")
-            out.extend([x for x in range(_int(start), _int(stop) + 1)])
+            out.extend(list(range(_int(start), _int(stop) + 1)))
         else:
             out.append(_int(token))
     return sorted(out)
 
 
-def validate_operations(ops, args):
-    if sum(1 for op in ops if getattr(args, op.name)) > 1:
-        raise ParserError("Only one operation can be specified")  # pragma: no cover
+def validate_operations(args: argparse.Namespace) -> None:
+    """Make sure, only one operation has been selected."""
+    if sum(1 for op in Operation if getattr(args, op.name, False)) > 1:
+        raise ParserError("Only one operation can be specified")
