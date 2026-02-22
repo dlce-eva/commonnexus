@@ -379,7 +379,7 @@ class Trees(Block):
                 >>> untranslated = Nexus.from_file(path)
                 >>> trees = []
                 >>> for tree in untranslated.TREES.trees:
-                ...     trees.append(Tree.format(
+                ...     trees.append(Tree.matrix_format(
                 ...         tree.name,
                 ...         untranslated.TREES.translate(tree).newick,
                 ...         rooted=tree.rooted))

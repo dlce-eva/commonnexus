@@ -1,14 +1,21 @@
+# pylint: disable=too-many-lines
+"""
+Functionality related to reading and writing NEXUS CHARACTER blocks.
+"""
 import types
 import typing
 import warnings
 import functools
+import itertools
 import collections
+import dataclasses
 
-from .base import Block, Payload
 from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import (
     iter_words_and_punctuation, Token, iter_delimited, iter_lines, BOOLEAN, word_after_equals, Word,
+    TokenOrString, TokenGenerator,
 )
+from .base import Block, Payload
 from .taxa import Taxlabels
 
 if typing.TYPE_CHECKING:  # pragma: no cover
@@ -18,18 +25,80 @@ if typing.TYPE_CHECKING:  # pragma: no cover
 # states.
 State = typing.Union[None, str, typing.Set[str], typing.Tuple[str]]
 StateMatrix = typing.OrderedDict[str, typing.OrderedDict[str, State]]
+StateList = typing.List[State]
 
 GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
 #: Some - but not all - punctuation is invalid as (special) state symbol.
 INVALID_SYMBOLS = "()[]{}/\\,;:=*'\"*`<>^"
 
 
-def duplicate_charlabel(label, cmd, nexus):
+def apply_to_state(func, state, *args, **kw):
+    """Applying a function to a state needs to take the different types of state into account."""
+    # We have to do a bit of mapping and renaming, which always needs to deal with the
+    # three different types of state.
+    if isinstance(state, str):
+        return func(state, *args, **kw)
+    if isinstance(state, tuple):
+        return tuple(func(s, *args, **kw) for s in state)
+    if isinstance(state, set):
+        return set(func(s, *args, **kw) for s in state)
+    raise ValueError(state)
+
+
+def duplicate_charlabel(label, cmd, nexus) -> None:
+    """Notify about duplicate character labels."""
     if nexus and nexus.cfg.strict:  # pragma: no cover
         raise ValueError('character names must be unique!')
-    else:
-        warnings.warn(
-            'Duplicate character name "{}" in {} command'.format(label, cmd))
+    warnings.warn(f'Duplicate character name "{label}" in {cmd} command')
+
+
+@dataclasses.dataclass
+class NexusMatrixRow:
+    """Helper class for parsing NEXUS matrix lines."""
+    label: str = None
+    entries: StateList = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class MatrixData:
+    """Matrix data and metadata suitable for formatting in the NEXUS format."""
+    # The matrix rows formatted for NEXUS
+    rows: typing.List[str] = dataclasses.field(default_factory=list)
+    # Taxon IDs mapped to labels
+    taxon_labels: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
+    # Character IDs mapped to labels
+    character_labels: typing.OrderedDict[str, str] = dataclasses.field(default_factory=dict)
+    # Symbols used in the matrix
+    symbols: typing.Set[str] = dataclasses.field(default_factory=set)
+
+    @classmethod
+    def from_statematrix(
+            cls,
+            matrix: StateMatrix,
+            symbol: typing.Callable[[str], str],
+    ) -> 'MatrixData':
+        """Read data and metadata from a StateMatrix instance."""
+        def get_symbol(entry):
+            if isinstance(entry, tuple):  # polymorphism -> ()
+                return f"({''.join(symbol(c) for c in entry)})"
+            if isinstance(entry, set):  # uncertainty -> {}
+                return f"{{{''.join(sorted(symbol(c) for c in entry))}}}"
+            return symbol(entry)
+
+        mdata = cls()
+        maxlen = max(len(Word(taxon).as_nexus_string()) for taxon in matrix)
+        for taxon, entries in matrix.items():
+            if not mdata.character_labels:
+                mdata.character_labels = collections.OrderedDict(
+                    [(str(i + 1), c) for i, c in enumerate(entries)])
+            mdata.taxon_labels[taxon] = Word(taxon).as_nexus_string()
+            row = []
+            for entry in entries.values():
+                if entry:
+                    mdata.symbols |= set(entry)
+                row.append(get_symbol(entry))
+            mdata.rows.append(f"\n{mdata.taxon_labels[taxon].ljust(maxlen)} {''.join(row)}")
+        return mdata
 
 
 class Eliminate(Payload):
@@ -53,6 +122,9 @@ class Eliminate(Payload):
         super().__init__(tokens, nexus=nexus)
         if nexus is not None and not nexus.cfg.ignore_unsupported:
             raise NotImplementedError('The ELIMINATE command is not supported')
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Dimensions(Payload):
@@ -98,11 +170,15 @@ class Dimensions(Payload):
                 break
         self.check()
 
-    def check(self):
+    def check(self) -> None:
+        """Make sure dimensions are known."""
         assert self.nchar and ((not self.newtaxa) or self.ntax)
 
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
-class Format(Payload):
+
+class Format(Payload):  # pylint: disable=too-many-instance-attributes
     """
     The FORMAT command specifies the format of the data MATRIX. This is a crucial command because
     misinterpretation of the format of the data matrix could lead to anything from incorrect results
@@ -345,81 +421,8 @@ class Format(Payload):
             return
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
-        after_equals = functools.partial(word_after_equals, words)
+        self._parse(words, functools.partial(word_after_equals, words))
 
-        subcommand = None
-        subcommands_set = set()
-        while 1:
-            try:
-                word = next(words)
-                if isinstance(word, str):
-                    subcommand = word.upper()
-                elif isinstance(word, Token) and word.text == '=':
-                    if subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE', 'LABELS', 'TOKENS']:
-                        # Some NEXUS variants set boolean subcommands always with "=no|yes"
-                        word = next(words).lower()
-                        if subcommand == 'LABELS' and word == 'left':
-                            word = 'yes'
-                        setattr(self, subcommand.lower(), BOOLEAN[word])
-                        subcommands_set.add(subcommand)
-                    elif subcommand:  # pragma: no cover
-                        raise ValueError(subcommand)
-
-                if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
-                    setattr(self, subcommand.lower(), after_equals())
-                    if subcommand == 'DATATYPE' and self.datatype.upper() != 'STANDARD':
-                        self.symbols = []
-                elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
-                    if subcommand not in subcommands_set:
-                        setattr(self, subcommand.lower(), True)
-                elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
-                    setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
-                elif subcommand == 'SYMBOLS':
-                    self.explicit_symbols = True
-                    self.symbols = []
-                    next_token_text = after_equals()
-                    if not next_token_text.startswith('"'):
-                        self.symbols = list(next_token_text)
-                    else:
-                        for w in iter_delimited(next_token_text, words):
-                            if isinstance(w, str):
-                                self.symbols.extend(list(w))
-                            else:
-                                assert w.text in '+-'
-                                self.symbols.append(w.text)
-                elif subcommand == 'EQUATE':
-                    key, e, bracket = None, False, None
-                    for t in iter_delimited(after_equals(), words):
-                        if isinstance(t, Token):
-                            if t.text == '=':
-                                assert key
-                                e = True
-                                bracket = None
-                            else:
-                                bracket = t.text
-                        elif isinstance(t, str):
-                            if key:
-                                assert e
-                                if bracket is None:
-                                    assert len(t) == 1
-                                    self.equate[key] = t
-                                elif bracket == '(':
-                                    self.equate[key] = tuple(t)
-                                elif bracket == '{':
-                                    self.equate[key] = set(t)
-                                else:  # pragma: no cover
-                                    raise ValueError(
-                                        'Invalid punctuation in EQUATE content: {}'.format(bracket))
-                                key, e = None, False
-                            else:
-                                key = t
-                elif subcommand == 'ITEMS':
-                    for w in iter_delimited(
-                            after_equals(), words, delimiter='()', allow_single_word=True):
-                        assert isinstance(w, str)
-                        self.items.append(w)
-            except StopIteration:
-                break
         if self.datatype:
             self.datatype = self.datatype.upper()
             assert self.datatype in {
@@ -449,8 +452,16 @@ class Format(Payload):
         if self.tokens:
             raise NotImplementedError('TOKENS is not supported')
 
+        self._set_symbols_and_equate()
+
+        invalid_equate = \
+            list(INVALID_SYMBOLS) + self.symbols + \
+            [self.missing or '', self.gap or '', self.matchchar or '']
+        assert not any(c in invalid_equate for c in self.equate)
+
+    def _set_symbols_and_equate(self):
         if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
-            T = 'U' if self.datatype == 'RNA' else 'T'
+            T = 'U' if self.datatype == 'RNA' else 'T'  # pylint: disable=invalid-name
             self.symbols.extend(list('ACG' + T))
             self.equate.update(
                 R=set('AG'),
@@ -475,10 +486,154 @@ class Format(Payload):
         if not self.respectcase:
             self.equate = {k.upper(): v for k, v in self.equate.items()}
 
-        invalid_equate = \
-            list(INVALID_SYMBOLS) + self.symbols + \
-            [self.missing or '', self.gap or '', self.matchchar or '']
-        assert not any(c in invalid_equate for c in self.equate)
+    def _parse(self,
+               words: TokenGenerator,
+               after_equals: typing.Callable[[], TokenOrString]):
+        subcommand, subcommands_set = None, set()
+        while 1:
+            try:
+                word = next(words)
+                if isinstance(word, str):
+                    subcommand = word.upper()
+                elif isinstance(word, Token) and word.text == '=':
+                    if subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE', 'LABELS', 'TOKENS']:
+                        # Some NEXUS variants set boolean subcommands always with "=no|yes"
+                        word = next(words).lower()
+                        if subcommand == 'LABELS' and word == 'left':
+                            word = 'yes'
+                        setattr(self, subcommand.lower(), BOOLEAN[word])
+                        subcommands_set.add(subcommand)
+                    elif subcommand:  # pragma: no cover
+                        raise ValueError(subcommand)
+
+                method = {
+                    'DATATYPE': self._parse_default,
+                    'MISSING': self._parse_default,
+                    'MATCHCHAR': self._parse_default,
+                    'GAP': self._parse_default,
+                    'STATESFORMAT': self._parse_default,
+                    'RESPECTCASE': self._parse_default,
+                    'TRANSPOSE': self._parse_default,
+                    'INTERLEAVE': self._parse_default,
+                    'NOLABELS': self._parse_default,
+                    'LABELS': self._parse_default,
+                    'NOTOKENS': self._parse_default,
+                    'TOKENS': self._parse_default,
+                    'SYMBOLS': self._parse_symbols,
+                    'EQUATE': self._parse_equate,
+                    'ITEMS': self._parse_items,
+                }.get(subcommand)
+                if method:
+                    method(
+                        subcommand=subcommand,
+                        subcommands_set=subcommands_set,
+                        words=words,
+                        after_equals=after_equals)
+            except StopIteration:
+                break
+
+    def _parse_default(self, subcommand, subcommands_set, after_equals, **_):
+        if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
+            setattr(self, subcommand.lower(), after_equals())
+            if subcommand == 'DATATYPE' and self.datatype.upper() != 'STANDARD':
+                self.symbols = []
+        elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
+            if subcommand not in subcommands_set:
+                setattr(self, subcommand.lower(), True)
+        elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
+            setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
+
+    def _parse_items(self, words, after_equals, **_):
+        for w in iter_delimited(
+                after_equals(), words, delimiter='()', allow_single_word=True):
+            assert isinstance(w, str)
+            self.items.append(w)
+
+    def _parse_symbols(self, words, after_equals, **_):
+        self.explicit_symbols = True
+        self.symbols = []
+        next_token_text = after_equals()
+        if not next_token_text.startswith('"'):
+            self.symbols = list(next_token_text)
+        else:
+            for w in iter_delimited(next_token_text, words):
+                if isinstance(w, str):
+                    self.symbols.extend(list(w))
+                else:
+                    assert w.text in '+-'
+                    self.symbols.append(w.text)
+
+    def _parse_equate(self, words, after_equals, **_):
+        key, e, bracket = None, False, None
+        for t in iter_delimited(after_equals(), words):
+            if isinstance(t, Token):
+                if t.text == '=':
+                    assert key
+                    e = True
+                    bracket = None
+                else:
+                    bracket = t.text
+            elif isinstance(t, str):
+                if key:
+                    assert e
+                    if bracket is None:
+                        assert len(t) == 1
+                        self.equate[key] = t
+                    elif bracket == '(':
+                        self.equate[key] = tuple(t)
+                    elif bracket == '{':
+                        self.equate[key] = set(t)
+                    else:  # pragma: no cover
+                        raise ValueError(f'Invalid punctuation in EQUATE content: {bracket}')
+                    key, e = None, False
+                else:
+                    key = t
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
+
+    @functools.cached_property
+    def lax_symbols(self) -> bool:
+        """Whether symbols are handled strict or lax."""
+        return not self.explicit_symbols and self.datatype in {None, 'STANDARD'} \
+            and not (self.nexus and self.nexus.cfg.strict)
+
+    def replace_symbol(
+            self,
+            symbol: str,
+            index: int,
+            row: typing.List,
+    ) -> typing.Union[None, str, State]:
+        """Replace a symbol with `None` for missing, `GAP` for gap and possibly matching chars."""
+        if (self.respectcase and symbol == self.missing) or \
+                (not self.respectcase and (symbol.upper() == self.missing.upper())):
+            return None
+        if self.gap:
+            if (self.respectcase and symbol == self.gap) or \
+                    (not self.respectcase and (symbol.upper() == self.gap.upper())):
+                return GAP
+        if self.matchchar:  # match entries from first row!
+            if (self.respectcase and symbol == self.matchchar) or \
+                    (not self.respectcase and (symbol.upper() == self.matchchar.upper())):
+                assert row
+                return row[index]
+        if symbol not in self.symbols:
+            symbol = symbol.lower() if symbol.isupper() else symbol.upper()
+
+        if not self.lax_symbols:
+            assert symbol in self.symbols, f'{symbol} {self.symbols}'
+        return symbol
+
+    def resolve_symbols(
+            self,
+            state: State,
+            index: int,
+            row: typing.List) -> State:
+        """Resolve symbols used in state taking into account EQUATE, MATCHCAR etc."""
+        def resolve(c, i, r):
+            c = self.equate.get(c.upper(), c)  # May result in ambiguous or multiple states!
+            return apply_to_state(self.replace_symbol, c, i, r)
+        return apply_to_state(resolve, state, index, row)
 
 
 class Charstatelabels(Payload):
@@ -550,8 +705,7 @@ class Charstatelabels(Payload):
                     in_states = True
                     continue
                 if name:
-                    raise ValueError(
-                        'Illegal token in charstatelabel: "{}{}"'.format(name, w))
+                    raise ValueError(f'Illegal token in charstatelabel: "{name}{w}"')
                 name = w
             except StopIteration:
                 break
@@ -561,6 +715,9 @@ class Charstatelabels(Payload):
             self.characters.append(types.SimpleNamespace(number=num, name=name, states=states))
         elif comma:  # There was a comma, but no new label.
             warnings.warn('Trailing comma in CHARSTATELABELS command')
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Charlabels(Payload):
@@ -599,6 +756,9 @@ class Charlabels(Payload):
                 duplicate_charlabel(w, 'CHARLABELS', nexus)
             names.add(w)
             self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Statelabels(Payload):
@@ -651,6 +811,9 @@ class Statelabels(Payload):
                 break
         if num and states:
             self.characters.append(types.SimpleNamespace(number=num, name=None, states=states))
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Matrix(Payload):
@@ -784,6 +947,8 @@ class Matrix(Payload):
         any attributes for data access. Instead, the matrix data can be read via
         :meth:`Characters.get_matrix`.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Characters(Block):
@@ -837,6 +1002,11 @@ class Characters(Block):
     __commands__ = [
         Dimensions, Format, Eliminate, Taxlabels, Charstatelabels, Charlabels, Statelabels, Matrix]
 
+    @functools.cached_property
+    def matrix_format(self) -> Format:
+        """Return the format specification associated with the CHARACTERS block."""
+        return Format(None, self.nexus) if 'FORMAT' not in self.commands else self.FORMAT
+
     def is_binary(self) -> bool:
         """
         :return: Whether the matrix in the block is binary, i.e. codes items as presence/absence \
@@ -858,164 +1028,42 @@ class Characters(Block):
         case given in FORMAT SYMBOLS, i.e. if a RESPECTCASE directive is missing and \
         FORMAT SYMBOLS="ABC", a value "a" in the matrix will be returned as "A".
         """
-        format = Format(None) if 'FORMAT' not in self.commands else self.FORMAT
-
         # Determine dimensions and labels:
-        ntax, taxlabels = self.get_taxlabels(format)
+        ntax, taxlabels = self.get_taxlabels()
         nchar = self.DIMENSIONS.nchar
-        charlabels, statelabels = self.get_charstatelabels(nchar, format)
-        if format.transpose and (not format.interleave) and (format.labels != False) and (not ntax):
-            raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
-        if format.datatype == 'CONTINUOUS':  # pragma: no cover
-            raise NotImplementedError("Can't read a matrix of datatype CONTINUOUS")
+        self._get_matrix_validate_input(ntax)
 
         # We read the matrix data in an agnostic way, ignoring whether it's transposed or not, as
         # ordered dictionary mapping row labels (or numbers) to lists of entries.
-        res = collections.OrderedDict()
-        label, entries = None, []
-        ncols, nrows = ntax if format.transpose else nchar, nchar if format.transpose else ntax
-
-        for i, line in enumerate(
-                list(iter_lines(self.MATRIX._tokens)) if format.interleave else
-                [self.MATRIX._tokens],
-                start=1):
-            words = iter_words_and_punctuation(
-                line, allow_punctuation_in_word='+-', nexus=self.nexus)
-            while 1:
-                try:
-                    t = next(words)
-                    if (format.labels is not False) and label is None:
-                        assert isinstance(t, str)
-                        label = t
-                        continue
-                    if isinstance(t, Token):
-                        if t.text == '(':
-                            w = next(words)
-                            symbols = ''
-                            while isinstance(w, str) or (w.text in format.symbols) \
-                                    or (w.text == ","):
-                                if isinstance(w, str) or w.text != ',':
-                                    symbols += getattr(w, 'text', w)
-                                w = next(words)
-                            assert w.text == ')', "Expected )"
-                            entries.append(tuple(symbols))
-                        elif t.text == '{':
-                            w = next(words)
-                            vals = set()
-                            while isinstance(w, str) or (w.text in format.symbols) \
-                                    or (w.text == format.gap) or (w.text == ","):
-                                if isinstance(w, str) or w.text != ',':
-                                    vals |= set(getattr(w, 'text', w))
-                                w = next(words)
-                            assert w.text == '}', "Expected }"
-                            entries.append(vals)
-                        elif t.text in format.symbols:  # pragma: no cover
-                            entries.append(t.text)
-                        else:  # pragma: no cover
-                            raise ValueError('Unexpected punctuation in matrix')
-                    else:
-                        entries.extend(list(t))  # We split a word into a list of symbols.
-                    if not format.interleave and (len(entries) == ncols):
-                        res[label or (len(res) + 1)] = entries
-                        label, entries = None, []
-                except StopIteration:
-                    break
-            if format.interleave:
-                key = label or (i % nrows or nrows)
-                if key not in res:
-                    res[key] = []
-                res[key].extend(entries)
-                label, entries = None, []
-
+        ncols = ntax if self.matrix_format.transpose else nchar
+        nrows = nchar if self.matrix_format.transpose else ntax
+        res = self._get_lists_of_state(
+            list(iter_lines(self.MATRIX._tokens))  # pylint: disable=protected-access
+            if self.matrix_format.interleave else
+            [self.MATRIX._tokens],  # pylint: disable=protected-access
+            ncols,
+            nrows,
+        )
+        # Compute taxlabels:
         cols = ncols or len(list(res.values())[0])
         assert all(len(states) == cols for states in res.values()), "Incomplete matrix read!"
         if not taxlabels:
-            assert not format.transpose
+            assert not self.matrix_format.transpose
             taxlabels = {i + 1: key for i, key in enumerate(res)}
-
-        def apply_to_state(func, state, *args, **kw):
-            # We have to do a bit of mapping and renaming, which always needs to deal with the
-            # three different types of state.
-            if isinstance(state, str):
-                return func(state, *args, **kw)
-            if isinstance(state, tuple):
-                return tuple(func(s, *args, **kw) for s in state)
-            if isinstance(state, set):
-                return set(func(s, *args, **kw) for s in state)
-            raise ValueError(state)  # pragma: no cover
-
-        lax_symbols = not format.explicit_symbols and format.datatype in {None, 'STANDARD'} \
-            and not (self.nexus and self.nexus.cfg.strict)
-
-        def replace_symbol(s, i, r):
-            if (format.respectcase and s == format.missing) or \
-                    (not format.respectcase and (s.upper() == format.missing.upper())):
-                return None
-            if format.gap:
-                if (format.respectcase and s == format.gap) or \
-                        (not format.respectcase and (s.upper() == format.gap.upper())):
-                    return GAP
-            if format.matchchar:  # match entries from first row!
-                if (format.respectcase and s == format.matchchar) or \
-                        (not format.respectcase and (s.upper() == format.matchchar.upper())):
-                    assert r
-                    return r[i]
-            if s not in format.symbols:
-                s = s.lower() if s.isupper() else s.upper()
-
-            if not lax_symbols:
-                assert s in format.symbols, '{} {}'.format(s, format.symbols)
-            return s
-
-        def resolve_symbols(s, i, r):
-            def resolve(c, i, r):
-                c = format.equate.get(c.upper(), c)  # May result in ambiguous or multiple states!
-                return apply_to_state(replace_symbol, c, i, r)
-            return apply_to_state(resolve, s, i, r)
-
+        # Resolve symbols, respecting EQUATE, etc.
         firstrow = None
         for i, l in enumerate(res):
-            res[l] = [resolve_symbols(s, i, firstrow) for i, s in enumerate(res[l])]
-            if i == 0:
-                # We need the fully resolved entries of the first row around to resolve MATCHCHARs.
+            res[l] = [
+                self.matrix_format.resolve_symbols(s, i, firstrow) for i, s in enumerate(res[l])]
+            if i == 0:  # We need the fully resolved entries of the first row to resolve MATCHCHARs.
                 firstrow = res[l]
 
         # Create the final result, an OrderedDict mapping taxa labels (or numbers) to OrderedDicts
         # mapping character labels or numbers to state symbols or labels.
-        matrix = collections.OrderedDict()
-        if not format.transpose:
-            tlabels = {str(k) for k in res.keys()}
-            valid_taxa = {str(k) for k in taxlabels}.union(taxlabels.values())
-            if not tlabels.issubset(valid_taxa):
-                if self.nexus and self.nexus.cfg.strict:  # pragma: no cover
-                    raise ValueError('Found undeclared taxa in characters matrix')
-                else:
-                    warnings.warn('Dropping undeclared taxa from characters matrix.')
+        return self._get_state_matrix(res, taxlabels, nchar, labeled_states)
 
-        for tnum, tlabel in sorted(taxlabels.items()):
-            if format.transpose:
-                # We have to pick the tnum column in each list in res.
-                matrix[tlabel] = collections.OrderedDict()
-                for cnum, clabel in sorted(charlabels.items()):
-                    entries = res[clabel] if clabel in res else res[cnum]
-                    matrix[tlabel][clabel] = entries[tnum - 1]
-            else:
-                key = tlabel if tlabel in res else (tnum if tnum in res else str(tnum))
-                if key in res:
-                    # Non-transposed matrices may not have data for each taxon!
-                    entries = res[key]
-                    matrix[tlabel] = collections.OrderedDict(
-                        [(charlabels[i], s) for i, s in enumerate(entries, start=1)])
-        if labeled_states:
-            for entries in matrix.values():
-                for char in entries:
-                    if char in statelabels:
-                        if entries[char] not in {None, GAP}:
-                            entries[char] = apply_to_state(
-                                lambda s: statelabels[char].get(s) or s, entries[char])
-        return matrix
-
-    def get_taxlabels(self, format):
+    def get_taxlabels(self) -> typing.Tuple[int, typing.Dict[int, str]]:
+        """Returns number of taxa and taxon labels."""
         if self.TAXLABELS:
             taxlabels = self.TAXLABELS.labels
             ntax = self.DIMENSIONS.ntax
@@ -1028,14 +1076,20 @@ class Characters(Block):
         else:
             ntax, taxlabels = None, {}
 
-        if format.interleave and format.labels is False and not format.transpose:
+        if (self.matrix_format.interleave
+                and self.matrix_format.labels is False
+                and not self.matrix_format.transpose):
             # If the matrix has no row labels and is not transposed, we need the number of taxa to
             # compute the size of the interleaved blocks.
             assert ntax
             taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
         return ntax, taxlabels
 
-    def get_charstatelabels(self, nchar=None, format=None):
+    def get_charstatelabels(self, nchar: int = None) -> typing.Tuple[
+        typing.Dict[int, str],
+        typing.Dict[str, str]
+    ]:
+        """Returns character labels and state labels."""
         nchar = nchar or self.DIMENSIONS.nchar
         charlabels = {i + 1: str(i + 1) for i in range(nchar)}
         statelabels = {}
@@ -1051,14 +1105,13 @@ class Characters(Block):
         if self.STATELABELS:
             statelabels = {c.number: c.states for c in self.STATELABELS.characters}
 
-        format = format or self.FORMAT or Format(None)
         if statelabels:
             statelabels = {charlabels[cnum]: states for cnum, states in statelabels.items()}
             for clabel in statelabels:
                 states = statelabels[clabel]
                 labeled = collections.OrderedDict()
-                if format:
-                    for i, symbol in enumerate(format.symbols):
+                if self.matrix_format:
+                    for i, symbol in enumerate(self.matrix_format.symbols):
                         if i < len(states) and states[i] != '_':
                             labeled[symbol] = states[i]
                 statelabels[clabel] = labeled
@@ -1071,13 +1124,12 @@ class Characters(Block):
         res = super().validate(log)
         if 'TAXLABELS' in self.commands and not self.DIMENSIONS.newtaxa:
             return log_or_raise(
-                'TAXLABELS may only be defined in {} block if NEWTAXA is specified.'.format(
-                    self.name),
+                f'TAXLABELS may only be defined in {self.name} block if NEWTAXA is specified.',
                 log=log)
         return res
 
     @classmethod
-    def from_data(cls,
+    def from_data(cls,  # pylint: disable=too-many-arguments,too-many-positional-arguments,arguments-differ # noqa: E501
                   matrix: StateMatrix,
                   taxlabels: bool = False,
                   statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None,
@@ -1138,56 +1190,184 @@ class Characters(Block):
         if datatype != 'STANDARD':  # pragma: no cover
             raise NotImplementedError('Only DATATYPE=STANDARD is supported for writing CHARACTERS')
 
-        symbols, rows, charlabels, maxlen, tlabels = set(), [], None, 0, {}
-        for taxon in matrix:  # We compute maximum taxon label length for pretty printing.
-            tlabels[taxon] = Word(taxon).as_nexus_string()
-            maxlen = max([maxlen, len(tlabels[taxon])])
+        mdata = MatrixData.from_statematrix(
+            matrix, lambda c: missing if c is None else (gap if c == GAP else c))
 
-        symbol = lambda c: missing if c is None else (gap if c == GAP else c)  # noqa: E731
-
-        for taxon, entries in matrix.items():
-            if not charlabels:
-                charlabels = collections.OrderedDict(
-                    [(str(i + 1), c) for i, c in enumerate(entries)])
-            row = []
-            for entry in entries.values():
-                if entry:
-                    symbols |= set(entry)
-                if isinstance(entry, tuple):  # polymorphism -> ()
-                    row.append('({})'.format(''.join(symbol(c) for c in entry)))
-                elif isinstance(entry, set):  # uncertainty -> {}
-                    row.append('{{{}}}'.format(''.join(sorted(symbol(c) for c in entry))))
-                else:
-                    row.append(symbol(entry))
-            rows.append('\n{} {}'.format(tlabels[taxon].ljust(maxlen), ''.join(row)))
-
-        symbols = ''.join(sorted([s for s in symbols if s not in [None, GAP]]))
+        symbols = ''.join(sorted([s for s in mdata.symbols if s not in [None, GAP]]))
         if missing in symbols or (gap in symbols):
-            raise ValueError('MISSING or GAP markers must be distinct from "{}"'.format(symbols))
-        respectcase = any(c.isupper() for c in symbols) and any(c.islower() for c in symbols)
+            raise ValueError(f'MISSING or GAP markers must be distinct from "{symbols}"')
 
-        dimensions = 'NCHAR={}'.format(len(list(matrix.values())[0]))
+        cmds = []
         if taxlabels:
-            dimensions = 'NEWTAXA NTAX={} {}'.format(len(tlabels), dimensions)
-        cmds = [
-            ('DIMENSIONS', dimensions),
-            ('FORMAT', 'DATATYPE=STANDARD {}MISSING={} GAP={} SYMBOLS="{}"'.format(
-                'RESPECTCASE ' if respectcase else '', missing, gap, symbols)),
-        ]
+            cmds.append(
+                ('DIMENSIONS',
+                 f'NEWTAXA NTAX={len(mdata.taxon_labels)} NCHAR={len(list(matrix.values())[0])}'))
+        else:
+            cmds.append(('DIMENSIONS', f'NCHAR={len(list(matrix.values())[0])}'))
+
+        cmds.append((
+            'FORMAT',
+            'DATATYPE=STANDARD '  # pylint: disable=consider-using-f-string
+            '{}MISSING={} GAP={} SYMBOLS="{}"'.format(
+                'RESPECTCASE ' if
+                any(c.isupper() for c in symbols) and any(c.islower() for c in symbols)
+                else '', missing, gap, symbols)))
         statelabels = statelabels or {}
-        if any(k != v for k, v in charlabels.items()):
+        if any(k != v for k, v in mdata.character_labels.items()):
             cmds.append((
                 'CHARSTATELABELS',
-                ', '.join('\n    {} {}{}'.format(
+                ', '.join('\n    {} {}{}'.format(  # pylint: disable=consider-using-f-string
                     n,
                     Word(l).as_nexus_string(),
                     '/' + ' '.join(Word(ll).as_nexus_string() for ll in statelabels[l].values())
                     if statelabels.get(l) else '',
-                ) for n, l in charlabels.items())))
+                ) for n, l in mdata.character_labels.items())))
         if taxlabels:
-            cmds.append(('TAXLABELS', ' '.join(tlabels.values())))
-        cmds.append(('MATRIX', ''.join(rows) + '\n'))
+            cmds.append(('TAXLABELS', ' '.join(mdata.taxon_labels.values())))
+        cmds.append(('MATRIX', ''.join(mdata.rows) + '\n'))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
+
+    #
+    # helper methods called in `get_matrix`.
+    #
+    def _get_state_matrix(
+            self,
+            raw_matrix: typing.OrderedDict[str, StateList],
+            taxlabels,
+            nchar: int,
+            labeled_states: bool
+    ) -> StateMatrix:
+        charlabels, statelabels = self.get_charstatelabels(nchar)
+
+        matrix = collections.OrderedDict()
+        if not self.matrix_format.transpose:
+            if not {str(k) for k in raw_matrix.keys()}.issubset(
+                    {str(k) for k in taxlabels}.union(taxlabels.values())):
+                if self.nexus and self.nexus.cfg.strict:  # pragma: no cover
+                    raise ValueError('Found undeclared taxa in characters matrix')
+                warnings.warn('Dropping undeclared taxa from characters matrix.')
+
+        for tnum, tlabel in sorted(taxlabels.items()):
+            if self.matrix_format.transpose:
+                # We have to pick the tnum column in each list in res.
+                matrix[tlabel] = collections.OrderedDict()
+                for cnum, clabel in sorted(charlabels.items()):
+                    entries = raw_matrix[clabel] if clabel in raw_matrix else raw_matrix[cnum]
+                    matrix[tlabel][clabel] = entries[tnum - 1]
+            else:
+                key = tlabel if tlabel in raw_matrix \
+                    else (tnum if tnum in raw_matrix else str(tnum))
+                if key in raw_matrix:
+                    # Non-transposed matrices may not have data for each taxon!
+                    entries = raw_matrix[key]
+                    matrix[tlabel] = collections.OrderedDict(
+                        [(charlabels[i], s) for i, s in enumerate(entries, start=1)])
+        if labeled_states:
+            self._label_states(matrix, statelabels)
+        return matrix
+
+    @staticmethod
+    def _label_states(matrix: StateMatrix, slabels):
+        """Replace state symbols with state labels."""
+        for entries in matrix.values():
+            for char in entries:
+                if (char in slabels) and (entries[char] not in {None, GAP}):
+                    entries[char] = apply_to_state(
+                        # We call the lambda right away, while still in the looop. Thus, the
+                        # captured loop variable will still have the correct value and it's ok to
+                        # ignore the corresponding pylint warning.
+                        lambda s: slabels[char].get(s) or s,  # pylint: disable=cell-var-from-loop
+                        entries[char])
+
+    def _get_matrix_validate_input(self, ntax):
+        if (self.matrix_format.transpose
+                and (not self.matrix_format.interleave)
+                and (self.matrix_format.labels is not False)
+                and (not ntax)):
+            raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
+        if self.matrix_format.datatype == 'CONTINUOUS':  # pragma: no cover
+            raise NotImplementedError("Can't read a matrix of datatype CONTINUOUS")
+
+    def _parse_matrix_line(
+            self,
+            line: typing.Iterable[Token],
+            row: NexusMatrixRow,
+            res: typing.OrderedDict[str, StateList],
+            ncols: int
+    ) -> NexusMatrixRow:
+        """Parse a line in a NEXUS matrix into a list of states."""
+        def get_symbols(
+                w: TokenOrString,
+                words: typing.Iterator[TokenOrString],
+                with_gap: bool = False,
+        ) -> typing.Tuple[TokenOrString, typing.List[str]]:
+            """Parse the state of a single cell in a NEXUS matrix."""
+            def symbol_or_comma(w):
+                res = (isinstance(w, str)
+                       or (w.text in self.matrix_format.symbols)
+                       or (w.text == ","))
+                if with_gap:
+                    res = res or (w.text == self.matrix_format.gap)
+                return res
+
+            symbols_ = []
+            while symbol_or_comma(w):
+                if isinstance(w, str) or w.text != ',':
+                    symbols_.append(getattr(w, 'text', w))
+                w = next(words)
+            return w, symbols_
+
+        words = iter_words_and_punctuation(
+            line, allow_punctuation_in_word='+-', nexus=self.nexus)
+        while 1:
+            try:
+                t = next(words)
+                if (self.matrix_format.labels is not False) and row.label is None:
+                    assert isinstance(t, str)
+                    row.label = t
+                    continue
+                if isinstance(t, Token):
+                    if t.text == '(':
+                        w, symbols = get_symbols(next(words), words)
+                        symbols = ''.join(symbols)
+                        assert w.text == ')', "Expected )"
+                        row.entries.append(tuple(symbols))
+                    elif t.text == '{':
+                        w, symbols = get_symbols(next(words), words, with_gap=True)
+                        vals = set(itertools.chain.from_iterable(symbols))
+                        assert w.text == '}', "Expected }"
+                        row.entries.append(vals)
+                    elif t.text in self.matrix_format.symbols:  # pragma: no cover
+                        row.entries.append(t.text)
+                    else:  # pragma: no cover
+                        raise ValueError('Unexpected punctuation in matrix')
+                else:
+                    row.entries.extend(list(t))  # We split a word into a list of symbols.
+
+                if not self.matrix_format.interleave and (len(row.entries) == ncols):
+                    res[row.label or (len(res) + 1)] = row.entries
+                    row = NexusMatrixRow()
+            except StopIteration:
+                break
+        return row
+
+    def _get_lists_of_state(
+            self,
+            lines: typing.List[typing.Iterable[Token]],
+            ncols: int,
+            nrows: int,
+    ) -> typing.OrderedDict[str, StateList]:
+        res = collections.OrderedDict()
+        row = NexusMatrixRow()
+        for i, line in enumerate(lines, start=1):
+            row = self._parse_matrix_line(line, row, res, ncols)
+            if self.matrix_format.interleave:
+                key = row.label or (i % nrows or nrows)
+                if key not in res:
+                    res[key] = []
+                res[key].extend(row.entries)
+                row = NexusMatrixRow()
+        return res
 
 
 class Options(Payload):
@@ -1211,6 +1391,9 @@ class Options(Payload):
             except StopIteration:
                 break
         assert self.gapmode in {None, 'missing', 'newstate'}
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Data(Characters):

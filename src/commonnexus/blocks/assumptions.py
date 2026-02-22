@@ -1,3 +1,6 @@
+"""
+The ASSUMPTIONS block.
+"""
 from .base import Block
 
 
@@ -215,4 +218,6 @@ class Assumptions(Block):
         ANCSTATES a n c e s t o r = 0 :1-3 5-7 12, 1:4 8-10, 2 : 1 1 ;
         ANCSTATES a n c e s t o r (VECTOR) = 000100011120;
     """
-    pass
+    @classmethod
+    def from_data(cls, *args, **kw) -> 'Assumptions':
+        raise NotImplementedError()  # pragma: no cover

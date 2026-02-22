@@ -3,6 +3,7 @@ Basic building blocks of NEXUS files.
 """
 import re
 import typing
+import logging
 import functools
 import collections
 
@@ -26,7 +27,8 @@ class Payload:
         self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
 
     @functools.cached_property
-    def comments(self):
+    def comments(self) -> typing.List[str]:
+        """List of text in comments in the command payload."""
         return [t.text for t in self._tokens if t.type == TokenType.COMMENT]
 
     def format(self, *args, **kw):
@@ -39,7 +41,8 @@ class Payload:
         return ''.join(str(t) for t in self._tokens)
 
     @property
-    def lines(self):
+    def lines(self) -> typing.List[str]:
+        """List of text lines in the payload."""
         return re.split(r'[\t\r ]*\n[\t\r ]*', str(self))
 
 
@@ -54,6 +57,9 @@ class Title(Payload):
         self.title = next(iter_words_and_punctuation(self._tokens, nexus=nexus)).upper()
         assert isinstance(self.title, str)
 
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
+
 
 class Id(Payload):
     """
@@ -65,6 +71,9 @@ class Id(Payload):
         super().__init__(tokens, nexus=nexus)
         self.id = next(iter_words_and_punctuation(self._tokens, nexus=nexus))
         assert isinstance(self.id, str)
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Link(Payload):
@@ -78,6 +87,9 @@ class Link(Payload):
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         self.block = next(words).upper()
         self.title = word_after_equals(words).upper()
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Block(tuple):
@@ -100,34 +112,37 @@ class Block(tuple):
     def __new__(cls, nexus, cmds):
         return super().__new__(cls, tuple(cmds))
 
-    def __init__(self, nexus, cmds):
+    def __init__(self, nexus, _):
         self.nexus = nexus
 
-    def __str__(self):
+    def __str__(self) -> str:
         return ''.join(str(cmd) for cmd in self)
 
     @functools.cached_property
-    def payload_map(self):
+    def payload_map(self) -> typing.Dict[str, Payload]:
+        """Maps command names to custom Payload subclasses."""
         res = {cls.__name__.upper(): cls for cls in self.__commands__}
         res.update(LINK=Link, TITLE=Title, ID=Id)
         return res
 
     @property
-    def id(self):
-        if self.ID:
-            return self.ID.id
+    def id(self) -> typing.Union[str, None]:
+        """A block's ID or None."""
+        return self.ID.id if self.ID else None
 
     @property
-    def title(self):
-        if self.TITLE:
-            return self.TITLE.title
+    def title(self) -> typing.Union[str, None]:
+        """A block's TITLE or None."""
+        return self.TITLE.title if self.TITLE else None
 
     @property
-    def links(self):
+    def links(self) -> typing.Dict[str, str]:
+        """Returns a dict mapping block names to link titles."""
         return {link.block: link.title for link in self.commands['LINK']}
 
     @property
-    def linked_blocks(self):
+    def linked_blocks(self) -> typing.Dict[str, 'Block']:
+        """Returns a dict mapping link names to the linked blocks."""
         res = {}
         for name, title in self.links.items():
             for block in self.nexus.blocks.get(name, []):
@@ -135,7 +150,7 @@ class Block(tuple):
                     res[name] = block
         return res
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str):
         if name.isupper():
             try:
                 return self.commands[name][0]
@@ -144,11 +159,13 @@ class Block(tuple):
         return super().__getattribute__(name)
 
     @functools.cached_property
-    def name(self):
+    def name(self) -> str:
+        """The name of the block."""
         return get_name(self[0].iter_payload_tokens())
 
     @functools.cached_property
-    def commands(self):
+    def commands(self) -> typing.Dict[str, typing.List]:
+        """Returns commands in the block grouped by name."""
         res = collections.defaultdict(list)
         for cmd in self:
             if not (cmd.is_beginblock or cmd.is_endblock):
@@ -156,19 +173,21 @@ class Block(tuple):
                 res[cmd.name].append(cls(tuple(cmd.iter_payload_tokens()), nexus=self.nexus))
         return res
 
-    def validate(self, log=None):
+    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
+        """Validates a block. Implementation missing!"""
         ncmds = sum(len(cmds) for cmds in self.commands.values())
         if log:
-            log.debug('{} block with {} commands'.format(self.name, ncmds))
+            log.debug(f'{self.name} block with {ncmds} commands')
         return True
 
     @classmethod
-    def from_commands(cls,
+    def from_commands(cls,  # pylint: disable=too-many-arguments
                       commands: typing.Iterable[
                           typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
                       nexus: typing.Optional["Nexus"] = None,
                       name: typing.Optional[str] = None,
                       comment: typing.Optional[str] = None,
+                      *,
                       TITLE: typing.Optional[str] = None,
                       LINK: typing.Optional[str] = None,
                       ID: typing.Optional[str] = None) -> 'Block':
@@ -219,8 +238,9 @@ class Block(tuple):
                 LINK = (block.strip(), title.strip())
             else:
                 assert isinstance(LINK, tuple) and len(LINK) == 2
-            cmds.append(Command.from_name_and_payload('LINK', '{} = {}'.format(
-                Word(LINK[0]).as_nexus_string(), Word(LINK[1]).as_nexus_string())))
+            cmds.append(Command.from_name_and_payload(
+                'LINK',
+                f'{Word(LINK[0]).as_nexus_string()} = {Word(LINK[1]).as_nexus_string()}'))
         for cmdspec in commands:
             payload, comment = None, None
             if isinstance(cmdspec, str):

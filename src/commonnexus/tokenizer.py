@@ -19,7 +19,8 @@ import dataclasses
 
 __all__ = [
     'TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word',
-    'iter_delimited', 'iter_lines', 'word_after_equals', 'iter_key_value_pairs']
+    'iter_delimited', 'iter_lines', 'word_after_equals', 'iter_key_value_pairs',
+    'TokenOrString', 'TokenGenerator']
 
 import typing
 
@@ -92,6 +93,10 @@ class Token:
         return self.text
 
 
+TokenOrString = typing.Union[str, Token]
+TokenGenerator = typing.Generator[TokenOrString, None, None]
+
+
 def _get_comment(s_iter: typing.Iterator[str]) -> typing.Tuple[str, typing.List[str]]:
     """Read the next comment from s_iter."""
     token = []
@@ -135,7 +140,7 @@ def _get_quoted(
                 return c, lookahead, token
 
 
-def iter_tokens(s_iter: typing.Iterator[str]) -> typing.Generator[Token, None, None]:
+def iter_tokens(s_iter: typing.Iterator[str]) -> TokenGenerator:
     """Turn iterator of characters into tokens."""
     token, lookahead = [], None
 
@@ -246,7 +251,11 @@ def get_allowed_punctuation(
     return allow_punctuation_in_word
 
 
-def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=None):
+def iter_words_and_punctuation(
+        tokens,
+        allow_punctuation_in_word=None,
+        nexus=None
+) -> TokenGenerator:
     """
     Word
 
@@ -307,7 +316,7 @@ def iter_words_and_punctuation(tokens, allow_punctuation_in_word=None, nexus=Non
 def iter_key_value_pairs(
         tokens,
         allow_punctuation_in_word=None
-) -> typing.Generator[typing.Tuple[str, typing.List[typing.Union[str, Token]]], None, None]:
+) -> typing.Generator[typing.Tuple[str, typing.List[TokenOrString]], None, None]:
     """
     :param tokens:
     :param allow_punctuation_in_word:
@@ -364,7 +373,7 @@ def iter_key_value_pairs(
         continue
 
 
-def word_after_equals(words_and_punctuation: typing.Iterator[typing.Union[Token, str]]) -> str:
+def word_after_equals(words_and_punctuation: typing.Iterator[TokenOrString]) -> str:
     """Return the first word token after an equals sign."""
     n = next(words_and_punctuation)
     assert n.text == '='
@@ -392,7 +401,7 @@ def iter_delimited(
         words_and_punctuation: typing.Iterator[Token],
         delimiter='"',
         allow_single_word=False,
-) -> typing.Generator[typing.Union[str, Token], None, None]:
+) -> TokenGenerator:
     """Generates tokens delimited by specific delimiters."""
     startchar = delimiter[0]
     endchar = startchar if len(delimiter) == 1 else delimiter[1]

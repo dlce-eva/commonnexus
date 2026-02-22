@@ -3,7 +3,24 @@ import warnings
 import pytest
 
 from commonnexus import Nexus, Config
-from commonnexus.blocks.characters import GAP, Characters
+from commonnexus.blocks.characters import GAP, Characters, apply_to_state
+
+
+@pytest.mark.parametrize(
+    'state,expected',
+    [
+        ('1', 1),
+        (('1', '2'), (1, 2)),
+        ({'1', '2'}, {1, 2}),
+    ]
+)
+def test_apply_to_state(state, expected):
+    assert apply_to_state(int, state) == expected
+
+
+def test_apply_to_state_invalid():
+    with pytest.raises(ValueError):
+        apply_to_state(int, [1, 2])
 
 
 def test_Eliminate(nexus):
