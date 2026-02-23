@@ -1,3 +1,11 @@
+"""
+Functionality related to reading and writing NEXUS SETS blocks.
+
+Note that SETS blocks - and in particular most of the commands in SETS - are not supported in many
+(any?) tools. Thus, our barebones implementation here suffices to parse NEXUS containing SETS blocks
+without hickups, but it does not provide any functionality to retrieve structured information from
+such blocks.
+"""
 from .base import Block, Payload
 
 
@@ -27,6 +35,8 @@ class Charset(Payload):
     4. ``NONCODING`` - All characters defined by current CODONPOSSET as non-protein-coding sites.
     """
     # syntax: a b c-g x-.
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Stateset(Payload):
@@ -57,6 +67,8 @@ class Stateset(Payload):
         `commonnexus` can read NEXUS containing this command, but will not resolve references to
         state-sets anywhere.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Changeset(Payload):
@@ -77,6 +89,8 @@ class Changeset(Payload):
     6, and the second set represents changes from 1 to 4 and 4 to 1. The CHANGESET "transversions"
     defines the set of all changes between purines and pyrimidines as transversions.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Taxset(Payload):
@@ -94,6 +108,8 @@ class Taxset(Payload):
     The VECTOR format consists of 0's and 1's: a 1 indicates that the taxon is to be included in
     the TAXSET; whitespace is not necessary between 0's and 1's.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Treeset(Payload):
@@ -107,6 +123,8 @@ class Treeset(Payload):
         `commonnexus` can read NEXUS containing this command, but will not resolve references to
         tree-sets anywhere.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Partition(Payload):
@@ -133,18 +151,26 @@ class Partition(Payload):
         TAXPARTITION mypartition (VECTOR) =
             Chiricahua Chiricahua Chiricahua Huachuca Huachuca Huachuca Galiuro Galiuro;
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Charpartition(Partition):
-    pass
+    """a partition"""
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Taxpartition(Partition):
-    pass
+    """a partition"""
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Treepartition(Partition):
-    pass
+    """a partition"""
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Sets(Block):
@@ -192,3 +218,7 @@ class Sets(Block):
     """
     __commands__ = [
         Charset, Stateset, Changeset, Taxset, Treeset, Charpartition, Taxpartition, Treepartition]
+
+    @classmethod
+    def from_data(cls, *args, **kw) -> 'Block':
+        raise NotImplementedError()  # pragma: no cover

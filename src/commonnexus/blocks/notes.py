@@ -1,7 +1,10 @@
+"""
+Functionality related to reading and writing NEXUS NOTES blocks.
+"""
 import typing
 
+from commonnexus.tokenizer import iter_key_value_pairs, Word, TokenOrString
 from .base import Block, Payload
-from commonnexus.tokenizer import iter_key_value_pairs, Word
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
@@ -39,12 +42,12 @@ class Text(Payload):
     """
     def __init__(self, tokens=None, nexus=None, **kw):
         super().__init__(tokens, nexus=nexus)
-        self.taxons = None
-        self.characters = None
-        self.states = None
-        self.trees = None
-        self.source = None
-        self.text = None
+        self.taxons: typing.Optional[typing.List[TokenOrString]] = None
+        self.characters: typing.Optional[typing.List[TokenOrString]] = None
+        self.states: typing.Optional[typing.List[TokenOrString]] = None
+        self.trees: typing.Optional[typing.List[TokenOrString]] = None
+        self.source: typing.Union[None, typing.Literal["FILE"], typing.Literal["INLINE"]] = None
+        self.text: typing.Optional[TokenOrString] = None
 
         if self._tokens is None:
             for k, v in kw.items():
@@ -69,30 +72,28 @@ class Text(Payload):
                             key[:-1].upper(), getattr(self, key), **kw))
             assert self.source in [None, 'FILE', 'INLINE'], self.source
 
-    def as_payload(self):
+    def as_payload(self) -> str:
+        """Returns a string representation of the payload."""
         res = []
-        if self.taxons:
-            numbers = ' '.join(
-                self.nexus.get_numbers('TAXON', self.taxons) if self.nexus else self.taxons)
-            res.append("TAXON={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
-
-        if self.characters:
-            numbers = ' '.join(self.nexus.get_numbers('CHARACTER', self.characters)
-                               if self.nexus else self.characters)
-            res.append("CHARACTER={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
+        for attr, label in [
+            (self.taxons, 'TAXON'), (self.characters, 'CHARACTER'), (self.trees, 'TREE')
+        ]:
+            if attr:
+                numbers = ' '.join(self.nexus.get_numbers(label, attr) if self.nexus else attr)
+                if ' ' in numbers:
+                    numbers = f'({numbers})'
+                res.append(f"{label}={numbers}")
 
         #
-        # FIXME: support STATE!
+        # FIXME: support STATE!  # pylint: disable=fixme
         #
-
-        if self.trees:
-            numbers = ' '.join(
-                self.nexus.get_numbers('TREE', self.trees) if self.nexus else self.trees)
-            res.append("TREE={}".format('({})'.format(numbers) if ' ' in numbers else numbers))
 
         res.append('SOURCE=INLINE')
-        res.append('TEXT={}'.format(Word(self.text).as_nexus_string()))
+        res.append(f'TEXT={Word(self.text).as_nexus_string()}')
         return ' '.join(res)
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Picture(Payload):
@@ -130,6 +131,8 @@ class Picture(Payload):
 
             `base64 is a modern alternative <https://docs.python.org/3/library/uu.html>`_
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Notes(Block):
@@ -177,26 +180,37 @@ class Notes(Block):
     __commands__ = {Text, Picture}
 
     @classmethod
-    def from_data(cls,
-                  texts: typing.List[typing.Dict[str, typing.Union[typing.List[str], str]]],
-                  comment: typing.Optional[str] = None,
-                  nexus: typing.Optional["Nexus"] = None,
-                  TITLE: typing.Optional[str] = None,
-                  ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
-            -> 'Block':
+    def from_data(  # pylint: disable=too-many-arguments,arguments-differ
+            cls,
+            texts: typing.List[typing.Dict[str, typing.Union[typing.List[str], str]]],
+            comment: typing.Optional[str] = None,
+            nexus: typing.Optional["Nexus"] = None,
+            *,
+            TITLE: typing.Optional[str] = None,
+            ID: typing.Optional[str] = None,
+            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+    ) -> 'Block':
         cmds = [('TEXT', Text(nexus=nexus, **text).as_payload()) for text in texts]
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
 
     @property
-    def texts(self):
+    def texts(self) -> typing.List[Text]:
+        """Return all texts."""
         return self.commands['TEXT']
 
-    def get_texts(self, taxon=None, character=None, tree=None):
+    def get_texts(
+            self,
+            taxon=None,
+            character=None,
+            tree=None,
+    ) -> typing.List[Text]:
+        """Return filtered list of texts."""
+        def matches(item: str, attr: typing.List[TokenOrString]) -> bool:
+            return item and attr and item in attr
+
         res = []
         for text in self.texts:
-            if (taxon and text.taxons and taxon in text.taxons) or \
-                    (character and text.characters and character in text.characters) or \
-                    (tree and text.trees and tree in text.trees):
+            if any(matches(item, attr) for item, attr in
+                   [(taxon, text.taxons), (character, text.characters), (tree, text.trees)]):
                 res.append(text)
         return res

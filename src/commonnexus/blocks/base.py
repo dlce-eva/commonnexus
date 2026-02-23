@@ -9,11 +9,14 @@ import collections
 
 from commonnexus.tokenizer import (
     get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType, Word,
+    TokenOrString,
 )
 from commonnexus.command import Command
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from commonnexus import Nexus
+
+PayloadTokensType = typing.Union[str, typing.Tuple[TokenOrString]]
 
 
 class Payload:
@@ -22,7 +25,7 @@ class Payload:
     """
     __multivalued__ = False
 
-    def __init__(self, tokens, nexus=None):
+    def __init__(self, tokens: PayloadTokensType, nexus: 'Nexus' = None) -> None:
         self.nexus = nexus
         self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
 
@@ -119,7 +122,7 @@ class Block(tuple):
         return ''.join(str(cmd) for cmd in self)
 
     @functools.cached_property
-    def payload_map(self) -> typing.Dict[str, Payload]:
+    def payload_map(self) -> typing.Dict[str, typing.Type[Payload]]:
         """Maps command names to custom Payload subclasses."""
         res = {cls.__name__.upper(): cls for cls in self.__commands__}
         res.update(LINK=Link, TITLE=Title, ID=Id)
@@ -164,7 +167,7 @@ class Block(tuple):
         return get_name(self[0].iter_payload_tokens())
 
     @functools.cached_property
-    def commands(self) -> typing.Dict[str, typing.List]:
+    def commands(self) -> typing.Dict[str, typing.List[typing.Type]]:
         """Returns commands in the block grouped by name."""
         res = collections.defaultdict(list)
         for cmd in self:
@@ -181,16 +184,18 @@ class Block(tuple):
         return True
 
     @classmethod
-    def from_commands(cls,  # pylint: disable=too-many-arguments
-                      commands: typing.Iterable[
-                          typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
-                      nexus: typing.Optional["Nexus"] = None,
-                      name: typing.Optional[str] = None,
-                      comment: typing.Optional[str] = None,
-                      *,
-                      TITLE: typing.Optional[str] = None,
-                      LINK: typing.Optional[str] = None,
-                      ID: typing.Optional[str] = None) -> 'Block':
+    def from_commands(  # pylint: disable=too-many-arguments
+            cls,
+            commands: typing.Iterable[
+                typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
+            nexus: typing.Optional["Nexus"] = None,
+            name: typing.Optional[str] = None,
+            comment: typing.Optional[str] = None,
+            *,
+            TITLE: typing.Optional[str] = None,
+            LINK: typing.Optional[str] = None,
+            ID: typing.Optional[str] = None,
+    ) -> 'Block':
         """
         Generic factory method for blocks.
 

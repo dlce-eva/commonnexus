@@ -1,3 +1,6 @@
+"""
+Functionality related to reading and writing NEXUS TAXA blocks.
+"""
 import typing
 import collections
 
@@ -24,7 +27,10 @@ class Dimensions(Payload):
         super().__init__(tokens, nexus=nexus)
         text = [t.text for t in tokens if not t.is_whitespace]
         assert text[0].upper() == 'NTAX' and text[1] == '='
-        self.ntax = int(text[2])
+        self.ntax: int = int(text[2])
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Taxlabels(Payload):
@@ -55,6 +61,9 @@ class Taxlabels(Payload):
         assert not set(str(n) for n in self.labels).intersection(self.labels.values()), \
             'Numbers as labels'
 
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
+
 
 class Taxa(Block):
     """
@@ -73,15 +82,17 @@ class Taxa(Block):
     __commands__ = [Dimensions, Taxlabels]
 
     @classmethod
-    def from_data(cls,
-                  labels: typing.Sequence,
-                  comment: typing.Optional[str] = None,
-                  nexus: typing.Optional["Nexus"] = None,
-                  TITLE: typing.Optional[str] = None,
-                  ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
-            -> 'Block':
+    def from_data(  # pylint: disable=too-many-arguments,arguments-differ
+            cls,
+            labels: typing.Sequence,
+            comment: typing.Optional[str] = None,
+            nexus: typing.Optional["Nexus"] = None,
+            *,
+            TITLE: typing.Optional[str] = None,
+            ID: typing.Optional[str] = None,
+            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+    ) -> 'Block':
         return cls.from_commands([
-            ('DIMENSIONS', 'NTAX={}'.format(len(labels))),
+            ('DIMENSIONS', f'NTAX={len(labels)}'),
             ('TAXLABELS', ' '.join(Word(w).as_nexus_string() for w in labels)),
         ], nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)

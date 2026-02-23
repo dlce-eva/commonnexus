@@ -1,3 +1,6 @@
+"""
+Functionality related to reading and writing NEXUS DISTANCES blocks.
+"""
 import typing
 import decimal
 import warnings
@@ -6,7 +9,7 @@ import collections
 import dataclasses
 
 from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word, Token, TokenOrString
-from .base import Block, Payload
+from .base import Block, Payload, PayloadTokensType
 from . import characters
 from . import taxa
 
@@ -33,8 +36,11 @@ class Dimensions(characters.Dimensions):
     :ivar typing.Optional[int] nchar:
     :ivar int ntax:
     """
-    def check(self):
+    def check(self) -> None:
         assert (not self.newtaxa) or self.ntax
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Format(Payload):
@@ -103,7 +109,7 @@ class Format(Payload):
        As in the CHARACTERS block, newline characters in interleaved matrices are significant, in
        that they indicate a switch to a new taxon.
     """
-    def __init__(self, tokens, nexus=None):
+    def __init__(self, tokens: PayloadTokensType, nexus: 'Nexus' = None) -> None:
         super().__init__(tokens, nexus=nexus)
         self.missing = '?'
         self.labels = True
@@ -144,8 +150,10 @@ class Format(Payload):
             ntax: int,
             row_index: typing.Optional[int] = None,
     ) -> int:
-        # The number of required entries for a distance matrix row depends on TRIANGLE,
-        # DIAGONAL and the row index.
+        """
+        The number of required entries for a distance matrix row depends on TRIANGLE, DIAGONAL and
+        the row index.
+        """
         if self.triangle == 'BOTH':  # Each row has entries for all taxa.
             ncols = ntax
         elif self.triangle == 'LOWER':  # Each row has one more entry than the previous one.
@@ -165,12 +173,17 @@ class Format(Payload):
             ncols -= 1
         return ncols
 
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
+
 
 class Taxlabels(taxa.Taxlabels):
     """
     This command allows specification of the names and ordering of the taxa. It serves to define
     taxa and is allowed only if the NEWTAXA token is included in the DIMENSIONS statement.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Matrix(Payload):
@@ -184,6 +197,8 @@ class Matrix(Payload):
         any attributes for data access. Instead, the matrix data can be read via
         :meth:`Distances.get_matrix`.
     """
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 @dataclasses.dataclass
@@ -221,7 +236,8 @@ class Distances(Block):
     __commands__ = [Dimensions, Format, Taxlabels, Matrix]
 
     @property
-    def matrix_format(self):
+    def matrix_format(self) -> Format:
+        """The FORMAT command to use with this block."""
         return self.FORMAT or Format(None)
 
     def _get_ntax_and_labels(self) -> typing.Tuple[int, taxa.TaxlabelsType]:
@@ -260,8 +276,9 @@ class Distances(Block):
         """
         ntax, taxlabels = self._get_ntax_and_labels()
         raw = self._parse_matrix(
-            list(iter_lines(self.MATRIX._tokens))
-            if self.matrix_format.interleave else [self.MATRIX._tokens],
+            list(iter_lines(self.MATRIX._tokens))  # pylint: disable=protected-access
+            if self.matrix_format.interleave
+            else [self.MATRIX._tokens],  # pylint: disable=protected-access
             ntax,
             taxlabels
         )

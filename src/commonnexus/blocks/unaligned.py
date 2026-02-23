@@ -1,3 +1,8 @@
+"""
+Functionality related to reading and writing NEXUS UNALIGNED blocks.
+
+Note: We don't provide any support other than making the block retrievable.
+"""
 from .base import Block
 
 
@@ -54,3 +59,6 @@ class Unaligned(Block):
     A comma must be placed at the end of each sequence (except the last, which requires a
     semicolon). Each sequence can occupy more than one line.
     """
+    @classmethod
+    def from_data(cls, *args, **kw) -> 'Block':
+        raise NotImplementedError()  # pragma: no cover

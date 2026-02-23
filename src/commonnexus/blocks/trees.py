@@ -1,13 +1,17 @@
+"""
+Functionality related to reading and writing NEXUS TREES blocks.
+"""
 import typing
+import logging
 import warnings
 import functools
 import collections
 
 import newick
 
-from .base import Payload, Block
 from commonnexus.util import log_or_raise
-from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token
+from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token, TokenOrString
+from .base import Payload, Block
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
@@ -59,7 +63,7 @@ class Translate(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         # get a word, and another word, then look for comma.
-        self.mapping = collections.OrderedDict()
+        self.mapping: typing.OrderedDict[str, TokenOrString] = collections.OrderedDict()
         key, value = None, None
         for t in iter_words_and_punctuation(self._tokens, nexus=nexus):
             if not key:
@@ -75,6 +79,9 @@ class Translate(Payload):
             key, value = None, None
         if key and value:
             self.mapping[key] = value
+
+    def format(self, *args, **kw):
+        raise NotImplementedError()  # pragma: no cover
 
 
 class Tree(Payload):
@@ -187,34 +194,33 @@ class Tree(Payload):
                     e = True
                 else:
                     assert not ncomplete, 'Stuff between tree name and ='
-                    self.name += t.text  # FIXME: Should we append punctuation to tree names?
+                    self.name += t.text
+                    # FIXME: Should we append punctuation to tree names? pylint: disable=fixme
 
         while not nwk:
             t = next(tokens)
             if t.type == TokenType.COMMENT:
                 if t.text.startswith('&') and t.text[1:] in {'U', 'R'}:
                     self._rooted = t.text
-                else:
-                    pass
             if t.type == TokenType.PUNCTUATION and t.text == '(':
                 nwk = True
         assert nwk
         # Since Newick node construction is somewhat expensive, we defer it to lazy properties.
-        self.newick_tokens = [Token(text='(', type=TokenType.PUNCTUATION)] + [t for t in tokens]
+        self.newick_tokens = [Token(text='(', type=TokenType.PUNCTUATION)] + list(tokens)
         self._nn = None
 
     @staticmethod
-    def format(name: str,
-               newick_node: newick.Node,
-               rooted: typing.Optional[bool] = None) -> str:
+    def format(  # pylint: disable=arguments-differ
+            name: str,
+            newick_node: newick.Node,
+            rooted: typing.Optional[bool] = None,
+    ) -> str:
         """
         Returns a representation of a tree as NEXUS string, suitable as payload of a ``TREE``
         command.
         """
-        return '{} = {}{}'.format(
-            Word(name).as_nexus_string(),
-            '' if rooted is None else '[&{}] '.format('R' if rooted else 'U'),
-            newick_node.newick)
+        rooting_info = '' if rooted is None else f"[&{'R' if rooted else 'U'}] "
+        return f'{Word(name).as_nexus_string()} = {rooting_info}{newick_node.newick}'
 
     @property
     def rooted(self) -> typing.Union[None, bool]:
@@ -223,6 +229,7 @@ class Tree(Payload):
         """
         if self._rooted:
             return self._rooted == '&R'
+        return None
 
     @functools.cached_property
     def newick_string(self) -> str:
@@ -290,8 +297,8 @@ class Tree(Payload):
                         newick.Token(token.text, newick.RESERVED_PUNCTUATION[token.text], level))
                     if token.text == '(':
                         level += 1
-                else:
-                    word.append(token.text)
+                    continue
+                word.append(token.text)
             elif token.type == TokenType.COMMENT:
                 if word:
                     nt.append(newick.Token(''.join(word), newick.TokenType.WORD, level))
@@ -331,13 +338,13 @@ class Trees(Block):
         """
         return self.commands['TREE']
 
-    def validate(self, log=None):
+    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
         super().validate(log=log)
         valid, with_translate, tree_seen = True, False, False
-        for i, cmd in enumerate(self[1:-1]):
+        for cmd in self[1:-1]:
             if cmd.name not in self.payload_map:  # pragma: no cover
                 valid = log_or_raise(
-                    'Invalid command for {} block: {}'.format(self.name, cmd.name), log=log)
+                    f'Invalid command for {self.name} block: {cmd.name}', log=log)
             if cmd.name == 'TRANSLATE':
                 if with_translate:  # pragma: no cover
                     valid = log_or_raise('Duplicate TRANSLATE command', log=log)
@@ -351,7 +358,8 @@ class Trees(Block):
         return valid
 
     @functools.cached_property
-    def translate_mapping(self):
+    def translate_mapping(self) -> typing.Dict[str, TokenOrString]:
+        """Maps taxa IDs used in trees to taxon labels."""
         mapping = {}
         if 'TAXA' in self.linked_blocks:
             mapping.update({
@@ -395,15 +403,17 @@ class Trees(Block):
         return res
 
     @classmethod
-    def from_data(cls,
-                  *tree_specs: TreeSpec,
-                  nexus: typing.Optional["Nexus"] = None,
-                  comment: typing.Optional[str] = None,
-                  lowercase_command: bool = False,
-                  TITLE: typing.Optional[str] = None,
-                  LINK: typing.Optional[str] = None,
-                  ID: typing.Optional[str] = None,
-                  **translate_labels: typing.Dict[str, str]) -> 'Trees':
+    def from_data(  # pylint: disable=too-many-arguments
+            cls,
+            *tree_specs: TreeSpec,
+            nexus: typing.Optional["Nexus"] = None,
+            comment: typing.Optional[str] = None,
+            lowercase_command: bool = False,
+            TITLE: typing.Optional[str] = None,
+            LINK: typing.Optional[str] = None,
+            ID: typing.Optional[str] = None,
+            **translate_labels: typing.Dict[str, str],
+    ) -> 'Trees':
         """
         Create a TREES block from a list of tree specifications.
 
@@ -425,9 +435,8 @@ class Trees(Block):
         if translate_labels:
             cmds.append((
                 'TRANSLATE',
-                ',\n'.join('{} {}'.format(
-                    Word(k).as_nexus_string(),
-                    Word(v).as_nexus_string())
+                ',\n'.join(
+                    f'{Word(k).as_nexus_string()} {Word(v).as_nexus_string()}'
                     for k, v in sorted(translate_labels.items()))
             ))
         for name, nwk, rooted in tree_specs:
