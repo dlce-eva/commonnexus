@@ -9,6 +9,7 @@ import collections
 import dataclasses
 
 from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word, Token, TokenOrString
+from commonnexus.util import do_until_stopiteration
 from .base import Block, Payload, PayloadTokensType
 from . import characters
 from . import taxa
@@ -128,20 +129,19 @@ class Format(Payload):
             res = next(words)
             return res if isinstance(res, str) else res.text
 
-        while 1:
-            try:
-                word = next(words)
-                subcommand = None
-                if isinstance(word, str):
-                    subcommand = word.upper()
-                if subcommand in ['TRIANGLE', 'MISSING']:
-                    setattr(self, subcommand.lower(), word_after_equals())
-                elif subcommand in ['INTERLEAVE']:
-                    setattr(self, subcommand.lower(), True)
-                elif subcommand in ['NOLABELS', 'LABELS', 'NODIAGONAL', 'DIAGONAL']:
-                    setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
-            except StopIteration:
-                break
+        def consume():
+            word = next(words)
+            subcommand = None
+            if isinstance(word, str):
+                subcommand = word.upper()
+            if subcommand in ['TRIANGLE', 'MISSING']:
+                setattr(self, subcommand.lower(), word_after_equals())
+            elif subcommand in ['INTERLEAVE']:
+                setattr(self, subcommand.lower(), True)
+            elif subcommand in ['NOLABELS', 'LABELS', 'NODIAGONAL', 'DIAGONAL']:
+                setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
+
+        do_until_stopiteration(consume)
         self.triangle = self.triangle.upper()
 
     def required_cols(

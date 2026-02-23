@@ -15,12 +15,14 @@ HashableState = typing.Union[None, str, typing.FrozenSet[str], typing.Tuple[str]
 
 @dataclasses.dataclass
 class DropChars:
+    """Specification of sites by character label in a matrix to be dropped."""
     chars: typing.Optional[typing.Iterable[str]] = dataclasses.field(default_factory=set)
     inverse: bool = False
 
 
 @dataclasses.dataclass
 class DropSpec:
+    """Specification of sites in a matrix to be dropped."""
     chars: DropChars = dataclasses.field(default_factory=DropChars)
     uncertain: bool = False
     polymorphic: bool = False
@@ -51,10 +53,11 @@ class CharacterMatrix(collections.OrderedDict):
         return list(self.keys())
 
     @property
-    def characters(self) -> typing.List[str]:
+    def characters(self) -> typing.Union[typing.List[str], None]:
         """The list of characters (labels or numbers) in a matrix."""
         for row in self.values():
             return list(row.keys())
+        return None  # pragma: no cover
 
     @property
     def distinct_states(self) -> typing.Set[HashableState]:
@@ -69,14 +72,17 @@ class CharacterMatrix(collections.OrderedDict):
 
     @property
     def has_missing(self) -> bool:
+        """Whether the matrix has missing states."""
         return None in self.distinct_states
 
     @property
     def has_gaps(self) -> bool:
+        """Whether the matrix has gapped states."""
         return GAP in self.distinct_states
 
     @property
     def has_uncertain(self) -> bool:
+        """Whether the matrix has uncertain states."""
         for s in self.distinct_states:
             if isinstance(s, frozenset):
                 return True
@@ -84,6 +90,7 @@ class CharacterMatrix(collections.OrderedDict):
 
     @property
     def has_polymorphic(self) -> bool:
+        """Whether the matrix has polymorphic states."""
         for s in self.distinct_states:
             if isinstance(s, tuple):
                 return True
@@ -100,13 +107,16 @@ class CharacterMatrix(collections.OrderedDict):
 
     @property
     def is_binary(self) -> bool:
+        """Whether the matrix has only two states."""
         return self.symbols.issubset({'0', '1'}) and not self.has_gaps
 
     @classmethod
-    def binarised(cls,
-                  matrix: StateMatrix,
-                  statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None) \
-            -> 'CharacterMatrix':
+    def binarised(
+            cls,
+            matrix: StateMatrix,
+            statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None,
+    ) -> 'CharacterMatrix':
+        """Matrix with multistate characters split into binary characters."""
         statelabels = statelabels or {}
         matrix = cls(matrix)
         charstates = collections.defaultdict(set)
@@ -114,14 +124,14 @@ class CharacterMatrix(collections.OrderedDict):
             for v in col:
                 if v is not None and v != GAP:
                     charstates[matrix.characters[i]] |= set(v)
-        charstates = {k: sorted(v, key=lambda vv: str(vv)) for k, v in charstates.items()}
+        charstates = {k: sorted(v, key=str) for k, v in charstates.items()}
         new = collections.OrderedDict()
 
         for taxon, row in matrix.items():
             new[taxon] = collections.OrderedDict()
             for char, value in row.items():
                 #
-                # FIXME: don't binarise what's already binary!
+                # FIXME: don't binarise what's already binary!  pylint: disable=fixme
                 #
                 for i, state in enumerate(charstates[char], start=1):
                     if value is None:
@@ -131,7 +141,7 @@ class CharacterMatrix(collections.OrderedDict):
                     else:
                         v = ({'1'} if isinstance(value, set) else '1') if state in value else '0'
                     statelabel = statelabels.get(char, {}).get(state) or state
-                    new[taxon]['{}_{}'.format(char, statelabel)] = v
+                    new[taxon][f'{char}_{statelabel}'] = v
         return cls(new)
 
     @classmethod
