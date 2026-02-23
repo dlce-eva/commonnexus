@@ -1,11 +1,15 @@
 import typing
 import collections
 
-from commonnexus.tokenizer import iter_words_and_punctuation, Word
+from commonnexus.tokenizer import iter_words_and_punctuation, Word, TokenOrString
 from .base import Block, Payload
 
 if typing.TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
+
+# Taxon labels are ordered and have a 1-based index. `TaxLabelsType` maps this index to the string
+# label.
+TaxlabelsType = typing.OrderedDict[int, TokenOrString]
 
 
 class Dimensions(Payload):
@@ -45,9 +49,8 @@ class Taxlabels(Payload):
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.labels = collections.OrderedDict(
-            [(n, w) for n, w in enumerate(
-                iter_words_and_punctuation(tokens, nexus=nexus), start=1)])
+        self.labels: TaxlabelsType = collections.OrderedDict(
+            (n, w) for n, w in enumerate(iter_words_and_punctuation(tokens, nexus=nexus), start=1))
         assert len(self.labels) == len(set(self.labels.values())), 'Duplicates in TAXLABELS'
         assert not set(str(n) for n in self.labels).intersection(self.labels.values()), \
             'Numbers as labels'

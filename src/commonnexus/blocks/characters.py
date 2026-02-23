@@ -53,7 +53,7 @@ def duplicate_charlabel(label, cmd, nexus) -> None:
 
 
 @dataclasses.dataclass
-class NexusMatrixRow:
+class CharacterMatrixRow:
     """Helper class for parsing NEXUS matrix lines."""
     label: str = None
     entries: StateList = dataclasses.field(default_factory=list)
@@ -1291,10 +1291,10 @@ class Characters(Block):
     def _parse_matrix_line(
             self,
             line: typing.Iterable[Token],
-            row: NexusMatrixRow,
+            row: CharacterMatrixRow,
             res: typing.OrderedDict[str, StateList],
             ncols: int
-    ) -> NexusMatrixRow:
+    ) -> CharacterMatrixRow:
         """Parse a line in a NEXUS matrix into a list of states."""
         def get_symbols(
                 w: TokenOrString,
@@ -1346,7 +1346,7 @@ class Characters(Block):
 
                 if not self.matrix_format.interleave and (len(row.entries) == ncols):
                     res[row.label or (len(res) + 1)] = row.entries
-                    row = NexusMatrixRow()
+                    row = CharacterMatrixRow()
             except StopIteration:
                 break
         return row
@@ -1358,7 +1358,7 @@ class Characters(Block):
             nrows: int,
     ) -> typing.OrderedDict[str, StateList]:
         res = collections.OrderedDict()
-        row = NexusMatrixRow()
+        row = CharacterMatrixRow()
         for i, line in enumerate(lines, start=1):
             row = self._parse_matrix_line(line, row, res, ncols)
             if self.matrix_format.interleave:
@@ -1366,7 +1366,7 @@ class Characters(Block):
                 if key not in res:
                     res[key] = []
                 res[key].extend(row.entries)
-                row = NexusMatrixRow()
+                row = CharacterMatrixRow()
         return res
 
 

@@ -3,8 +3,9 @@ import decimal
 import warnings
 import itertools
 import collections
+import dataclasses
 
-from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word
+from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word, Token, TokenOrString
 from .base import Block, Payload
 from . import characters
 from . import taxa
@@ -13,6 +14,8 @@ if typing.TYPE_CHECKING:  # pragma: no cover
     from commonnexus import Nexus
 
 ODict = typing.OrderedDict
+DistanceType = typing.Union[None, decimal.Decimal]
+DistanceMatrix = ODict[str, ODict[str, DistanceType]]
 
 
 class Dimensions(characters.Dimensions):
@@ -135,6 +138,33 @@ class Format(Payload):
                 break
         self.triangle = self.triangle.upper()
 
+    def required_cols(
+            self,
+            rows: ODict,
+            ntax: int,
+            row_index: typing.Optional[int] = None,
+    ) -> int:
+        # The number of required entries for a distance matrix row depends on TRIANGLE,
+        # DIAGONAL and the row index.
+        if self.triangle == 'BOTH':  # Each row has entries for all taxa.
+            ncols = ntax
+        elif self.triangle == 'LOWER':  # Each row has one more entry than the previous one.
+            if row_index is not None:
+                ncols = row_index
+            else:
+                ncols = 1 if not rows else \
+                    len(list(rows.values())[-1]) + (2 if self.diagonal is False else 1)
+        else:  # Each row has one entry less than the previous row.
+            if row_index is not None:
+                ncols = ntax - row_index + 1
+            else:
+                ncols = ntax - len(list(rows.values()))
+
+        if not self.diagonal:
+            # And if the diagonal is missing, we expect one entry less in all cases.
+            ncols -= 1
+        return ncols
+
 
 class Taxlabels(taxa.Taxlabels):
     """
@@ -154,6 +184,14 @@ class Matrix(Payload):
         any attributes for data access. Instead, the matrix data can be read via
         :meth:`Distances.get_matrix`.
     """
+
+
+@dataclasses.dataclass
+class DistanceMatrixRow:
+    """Helper class for parsing NEXUS distance matrix lines."""
+    # A row label may be `None`, a 1-based row index or a string label.
+    label: typing.Union[None, int, str] = None
+    entries: typing.List[DistanceType] = dataclasses.field(default_factory=list)
 
 
 class Distances(Block):
@@ -182,7 +220,23 @@ class Distances(Block):
     """
     __commands__ = [Dimensions, Format, Taxlabels, Matrix]
 
-    def get_matrix(self) -> ODict[str, ODict[str, typing.Union[None, decimal.Decimal]]]:
+    @property
+    def matrix_format(self):
+        return self.FORMAT or Format(None)
+
+    def _get_ntax_and_labels(self) -> typing.Tuple[int, taxa.TaxlabelsType]:
+        ntax, taxlabels = None, collections.OrderedDict()
+        if self.DIMENSIONS:
+            ntax = self.DIMENSIONS.ntax
+        if self.TAXLABELS:
+            taxlabels = self.TAXLABELS.labels
+            ntax = self.DIMENSIONS.ntax
+        elif self.nexus.TAXA:
+            taxlabels = self.nexus.TAXA.TAXLABELS.labels
+            ntax = self.nexus.TAXA.DIMENSIONS.ntax
+        return ntax, taxlabels
+
+    def get_matrix(self) -> DistanceMatrix:
         """
         :return: A full distance matrix encoded as nested ordered dictionaries.
 
@@ -204,118 +258,39 @@ class Distances(Block):
             >>> nex.DISTANCES.get_matrix()['taxon_3']['taxon_1']
             Decimal('2.0')
         """
-        format = self.FORMAT or Format(None)
-
-        ntax, taxlabels = None, {}
-        if self.DIMENSIONS:
-            ntax = self.DIMENSIONS.ntax
-        if self.TAXLABELS:
-            taxlabels = self.TAXLABELS.labels
-            ntax = self.DIMENSIONS.ntax
-        elif self.nexus.TAXA:
-            taxlabels = self.nexus.TAXA.TAXLABELS.labels
-            ntax = self.nexus.TAXA.DIMENSIONS.ntax
-
-        res = collections.OrderedDict()
-        label, entries = None, []
-
-        def required_cols(row_index=None):
-            # The number of required entries for a distance matrix row depends on TRIANGLE,
-            # DIAGONAL and the row index.
-            if format.triangle == 'BOTH':  # Each row has entries for all taxa.
-                ncols = ntax
-            elif format.triangle == 'LOWER':  # Each row has one more entry than the previous one.
-                if row_index:
-                    ncols = row_index
-                else:
-                    ncols = 1 if not res else \
-                        len(list(res.values())[-1]) + (2 if format.diagonal is False else 1)
-            else:  # Each row has one entry less than the previous row.
-                if row_index:
-                    ncols = ntax - row_index + 1
-                else:
-                    ncols = ntax - len(list(res.values()))
-            if not format.diagonal:
-                # And if the diagonal is missing, we expect one entry less in all cases.
-                ncols -= 1
-            return ncols
-
-        # Now read the matrix data:
-        for i, line in enumerate(
-            list(iter_lines(self.MATRIX._tokens)) if format.interleave else [self.MATRIX._tokens],
-            start=1
-        ):
-            words = iter_words_and_punctuation(line, nexus=self.nexus)
-
-            if (not format.labels) and required_cols() == 0 and 1 not in res:
-                # NODIAGONAL NOLABELS TRIANGLE=LOWER
-                res[1] = []
-
-            while 1:
-                try:
-                    t = next(words)
-                    if (format.labels is not False) and label is None:
-                        assert isinstance(t, str)
-                        label = t
-                        if not format.diagonal and not format.interleave and \
-                                format.triangle == 'LOWER' and not res:
-                            # We're done with this row after the label.
-                            res[label] = []
-                            label = None
-                        continue
-                    entries.append(None if t == format.missing else decimal.Decimal(t))
-                    if not format.interleave and (len(entries) == required_cols()):
-                        res[label or (len(res) + 1)] = entries
-                        label, entries = None, []
-                except StopIteration:
-                    break
-            if format.interleave:
-                # We collected a row of entries, now append them to the correct taxon.
-                # If we have a label, that's easy.
-                if not label:
-                    for ri in taxlabels:
-                        if ri not in res:
-                            # First pass must go through all taxa!
-                            label = ri
-                            break
-                    if not label:
-                        # The next label to append entries to is the next one still in need of
-                        # entries!
-                        for row_index in res:
-                            if len(res[row_index]) < required_cols(row_index):
-                                label = row_index
-                                break
-                if label not in res:
-                    res[label] = []
-                res[label].extend(entries)
-                label, entries = None, []
-
-        if format.labels is False:
+        ntax, taxlabels = self._get_ntax_and_labels()
+        raw = self._parse_matrix(
+            list(iter_lines(self.MATRIX._tokens))
+            if self.matrix_format.interleave else [self.MATRIX._tokens],
+            ntax,
+            taxlabels
+        )
+        if self.matrix_format.labels is False:
             assert taxlabels
         elif not taxlabels:
-            taxlabels = collections.OrderedDict((i, label) for i, label in enumerate(res, start=1))
+            taxlabels = collections.OrderedDict(enumerate(raw, start=1))
 
         # We pad the result rows with None columns on the left as necessary, to make lookup by
         # column index work.
-        if format.triangle == 'UPPER':
-            for i, key in enumerate(res):
-                res[key] = [None] * (i if format.diagonal else i + 1) + res[key]
-            if format.diagonal is False and format.labels is False:
-                assert (ntax) not in res, str(res.keys())
-                res[ntax] = [None]
-        elif format.triangle == 'BOTH' and not format.diagonal:
-            for i, key in enumerate(res):
-                res[key].insert(i, None)
+        if self.matrix_format.triangle == 'UPPER':
+            for i, key in enumerate(raw):
+                raw[key] = [None] * (i if self.matrix_format.diagonal else i + 1) + raw[key]
+            if self.matrix_format.diagonal is False and self.matrix_format.labels is False:
+                assert (ntax) not in raw, str(raw.keys())
+                raw[ntax] = [None]
+        elif self.matrix_format.triangle == 'BOTH' and not self.matrix_format.diagonal:
+            for i, key in enumerate(raw):
+                raw[key].insert(i, None)
 
         # Match matrix rows to expected taxa:
         validtaxa = set(str(k) for k in taxlabels).union(taxlabels.values())
-        restaxa = {str(k): k for k in res}
+        restaxa = {str(k): k for k in raw}
         if not set(restaxa).issubset(validtaxa):
             warnings.warn('Pruning undeclared taxa from DISTANCES matrix.')
             for taxon in set(restaxa) - validtaxa:
-                del res[restaxa[taxon]]
+                del raw[restaxa[taxon]]
 
-        if len(res) < len(taxlabels):
+        if len(raw) < len(taxlabels):
             # Not all taxa appear in the matrix. Prune expected taxa to make lookup work.
             for k in list(taxlabels.keys()):
                 if (str(k) not in restaxa) and (taxlabels[k] not in restaxa):
@@ -323,40 +298,133 @@ class Distances(Block):
             taxlabels = collections.OrderedDict(
                 (i, label) for i, label in enumerate(taxlabels.values(), start=1))
 
-        res = {taxlabels.get(k, k): v for k, v in res.items()}
-        assert set(res.keys()).issubset(taxlabels.values()), "Unmatched taxa in DISTANCES matrix."
+        # Now we replace the row-index keys in res with string labels.
+        raw = {taxlabels.get(k, k): v for k, v in raw.items()}
+        assert set(raw.keys()).issubset(taxlabels.values()), "Unmatched taxa in DISTANCES matrix."
 
         # Now populate a complete matrix with the data read from the tokens:
-        matrix = collections.OrderedDict([
+        return self._populated_matrix(raw, taxlabels)
+
+    def _populated_matrix(
+            self,
+            res: ODict[TokenOrString, typing.List[DistanceType]],
+            taxlabels: taxa.TaxlabelsType,
+    ) -> DistanceMatrix:
+        # Now populate a complete matrix with the data read from the tokens:
+        matrix: DistanceMatrix = collections.OrderedDict([
             (label, collections.OrderedDict([(ll, None) for ll in taxlabels.values()]))
             for label in taxlabels.values()])
         for (na, la), (nb, lb) in itertools.combinations_with_replacement(taxlabels.items(), r=2):
-            if na == nb and format.diagonal is False:
+            if na == nb and self.matrix_format.diagonal is False:
                 matrix[la][lb] = 0
                 continue
-            if format.triangle == 'BOTH':
+            if self.matrix_format.triangle == 'BOTH':  # We might have assymetric distances.
                 matrix[la][lb] = res[la][nb - 1]
                 matrix[lb][la] = res[lb][na - 1]
             else:
-                val = res[la][nb - 1] if format.triangle == 'UPPER' else res[lb][na - 1]
+                val = res[la][nb - 1] if self.matrix_format.triangle == 'UPPER' else res[lb][na - 1]
                 if nb != na:
                     matrix[la][lb] = matrix[lb][la] = val
                 else:
                     matrix[la][lb] = val
-
         return matrix
 
+    def _parse_matrix(
+            self,
+            lines: typing.List[typing.Iterable[Token]],
+            ntax: int,
+            taxlabels: taxa.TaxlabelsType,
+    ) -> ODict[int, typing.List[DistanceType]]:
+        res = collections.OrderedDict()
+        row = DistanceMatrixRow()
+        # Now read the matrix data:
+        for line in lines:
+            if ((not self.matrix_format.labels)
+                    and self.matrix_format.required_cols(res, ntax) == 0
+                    and 1 not in res):
+                # NODIAGONAL NOLABELS TRIANGLE=LOWER
+                res[1] = []
+
+            row = self._parse_matrix_line(line, row, res, ntax)
+            if self.matrix_format.interleave:
+                # We collected a row of entries, now append them to the correct taxon.
+                # If we have a label, that's easy.
+                if not row.label:
+                    self._set_label_for_interleaved_matrix_row(row, res, ntax, taxlabels)
+                if row.label not in res:
+                    res[row.label] = []
+                res[row.label].extend(row.entries)
+                row = DistanceMatrixRow()
+        return res
+
+    def _set_label_for_interleaved_matrix_row(
+            self,
+            row: DistanceMatrixRow,
+            res: ODict[int, typing.List[DistanceType]],
+            ntax: int,
+            taxlabels: taxa.TaxlabelsType) -> None:
+        """Sets the label attribute of row, if a matching label is found."""
+        for ri in taxlabels:
+            if ri not in res:
+                # First pass must go through all taxa!
+                row.label = ri
+                break
+        if not row.label:
+            # The next label to append entries to is the next one still in need of
+            # entries!
+            for row_index in res:
+                if len(res[row_index]) < self.matrix_format.required_cols(
+                        res, ntax, row_index=row_index):
+                    row.label = row_index
+                    break
+
+    def _parse_matrix_line(
+            self,
+            line: typing.Iterable[Token],
+            row: DistanceMatrixRow,
+            res: ODict[int, typing.List[DistanceType]],
+            ntax: int,
+    ) -> DistanceMatrixRow:
+        """Parse a single line of a NEXUS DISTANCE matrix."""
+        words = iter_words_and_punctuation(line, nexus=self.nexus)
+        while 1:
+            try:
+                t = next(words)
+                if (self.matrix_format.labels is not False) and row.label is None:
+                    assert isinstance(t, str)
+                    row.label = t
+                    if (not self.matrix_format.diagonal
+                            and not self.matrix_format.interleave
+                            and self.matrix_format.triangle == 'LOWER'
+                            and not res):
+                        # We're done with this row after the label.
+                        res[row.label] = []
+                        row.label = None
+                    continue
+                row.entries.append(
+                    None if t == self.matrix_format.missing else decimal.Decimal(t))
+                if (not self.matrix_format.interleave
+                        and (len(row.entries) == self.matrix_format.required_cols(res, ntax))):
+                    # We have read the last expected distance value for a row.
+                    res[row.label or (len(res) + 1)] = row.entries
+                    row = DistanceMatrixRow()
+            except StopIteration:
+                break
+        return row
+
     @classmethod
-    def from_data(cls,
-                  matrix: typing.OrderedDict[str, typing.OrderedDict[
-                      str, typing.Union[None, float, int, decimal.Decimal]]],
-                  taxlabels: bool = False,
-                  comment: typing.Optional[str] = None,
-                  nexus: typing.Optional["Nexus"] = None,
-                  TITLE: typing.Optional[str] = None,
-                  ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
-            -> 'Block':
+    def from_data(  # pylint: disable=too-many-arguments,arguments-differ
+            cls,
+            matrix: typing.OrderedDict[str, typing.OrderedDict[
+                str, typing.Union[None, float, int, decimal.Decimal]]],
+            taxlabels: bool = False,
+            comment: typing.Optional[str] = None,
+            nexus: typing.Optional["Nexus"] = None,
+            *,
+            TITLE: typing.Optional[str] = None,
+            ID: typing.Optional[str] = None,
+            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+    ) -> 'Block':
         """
         Create a DISTANCES block from the distance matrix `matrix`.
 
@@ -365,9 +433,9 @@ class Distances(Block):
         :meth:`Distances.get_matrix`.
         :param taxlabels: Whether to include a TAXLABELS command.
         """
-        dimensions = 'NTAX={}'.format(len(matrix))
+        dimensions = f'NTAX={len(matrix)}'
         if taxlabels:
-            dimensions = 'NEWTAXA NTAX={} {}'.format(len(matrix), dimensions)
+            dimensions = f'NEWTAXA NTAX={len(matrix)} {dimensions}'
         cmds = [
             # DIMENSIONS: necessary if not all taxa are present in the matrix!
             ('DIMENSIONS', dimensions),
@@ -383,8 +451,8 @@ class Distances(Block):
 
         mrows = []
         for taxon, dists in matrix.items():
-            row = [tlabels[taxon].ljust(maxlen)]
-            row.extend(['?' if v is None else str(v) for v in dists.values()])
-            mrows.append(' '.join(row))
+            mrows.append(' '.join(
+                [tlabels[taxon].ljust(maxlen)] +  # noqa: W504
+                ['?' if v is None else str(v) for v in dists.values()]))
         cmds.append(('MATRIX', ''.join('\n' + row for row in mrows) + '\n'))
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, LINK=LINK, ID=ID, comment=comment)

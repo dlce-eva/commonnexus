@@ -1,3 +1,6 @@
+"""
+Functionality related to reading and writing NEXUS CODONS blocks.
+"""
 from .base import Block
 
 
@@ -153,3 +156,6 @@ class Codons(Block):
     different taxa for all characters. Current programs do not accept any character-set other than
     ALL nor any taxon-set other than ALL.
     """
+    @classmethod
+    def from_data(cls, *args, **kw) -> 'Block':
+        raise NotImplementedError()  # pragma: no cover

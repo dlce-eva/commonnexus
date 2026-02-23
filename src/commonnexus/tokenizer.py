@@ -178,7 +178,7 @@ def iter_tokens(s_iter: typing.Iterator[str]) -> TokenGenerator:
                 if token:
                     yield Token.from_text(token)
                     token = []
-                yield Token.from_text(c, TokenType.PUNCTUATION)
+                yield Token.from_text([c], TokenType.PUNCTUATION)
                 continue
 
             if token and (token[-1] in WHITESPACE):
@@ -200,7 +200,7 @@ def get_name(tokens: typing.Iterable[Token]) -> str:
     The Nexus spec allows comments **in** block or command names. This function takes this into
     account when assembling a name from an iterable of tokens.
     """
-    res = ''
+    res: str = ''
     for t in itertools.dropwhile(lambda t: t.type != TokenType.WORD, tokens):
         if res:
             # We already encountered one word, but we're still in the loop, so there must have been
@@ -252,8 +252,8 @@ def get_allowed_punctuation(
 
 
 def iter_words_and_punctuation(
-        tokens,
-        allow_punctuation_in_word=None,
+        tokens: typing.Iterable[Token],
+        allow_punctuation_in_word: typing.Union[str, None] = None,
         nexus=None
 ) -> TokenGenerator:
     """
@@ -314,7 +314,7 @@ def iter_words_and_punctuation(
 
 
 def iter_key_value_pairs(
-        tokens,
+        tokens: typing.Iterable[Token],
         allow_punctuation_in_word=None
 ) -> typing.Generator[typing.Tuple[str, typing.List[TokenOrString]], None, None]:
     """
