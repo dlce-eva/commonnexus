@@ -10,9 +10,11 @@ The following blocks can be handled:
 
 """
 import collections
+import typing
 
 from commonnexus import Nexus
 from commonnexus.blocks import Taxa, Trees, Characters
+from commonnexus.blocks.characters import StateMatrix
 
 SUPPORTED_BLOCKS = {'TAXA', 'CHARACTERS', 'DATA', 'TREES'}
 
@@ -26,42 +28,29 @@ def combine(*nexus: Nexus, **kw) -> Nexus:
     for nex in nexus:
         if not kw.get('drop_unsupported', False):
             assert set(nex.blocks).issubset(SUPPORTED_BLOCKS), \
-                "Only {} blocks are supported.".format(SUPPORTED_BLOCKS)
+                f"Only {SUPPORTED_BLOCKS} blocks are supported."
         for block in SUPPORTED_BLOCKS:
             assert len(nex.blocks.get(block, [])) <= 1
 
-    # Determine the superset of taxa.
-    taxa = []
-    for i, nex in enumerate(nexus, start=1):
-        for taxon in (nex.taxa or []):
-            if taxon not in taxa:
-                taxa.append(taxon)
+    # Determine the superset of taxa, preserving the order in which they appear.
+    seen = set()
+    seen_add = seen.add
+    taxa = [
+        taxon for nex in nexus for taxon in (nex.taxa or [])
+        if not (taxon in seen or seen_add(taxon))]
 
     # Create a super-matrix, with all taxa and all characters.
-    matrices, datatypes = [], set()
-    charlabels = collections.defaultdict(list)
+    matrices, last_datatype = collections.OrderedDict(), None
     for i, nex in enumerate(nexus, start=1):
         if nex.characters:
-            datatypes.add(nex.characters.FORMAT.datatype if nex.characters.FORMAT else 'STANDARD')
-            matrices.append(nex.characters.get_matrix())
-            for chars in matrices[-1].values():
-                for charlabel in chars:
-                    charlabels[i] = charlabel
-                break
-    if len(datatypes) > 1:  # pragma: no cover
-        raise ValueError('Only CHARACTER or DATA blocks of the same datatype can be combined!')
-    matrix = collections.OrderedDict()
-    if matrices:
-        for taxon in taxa:
-            row = collections.OrderedDict()
-            for i, m in enumerate(matrices, start=1):
-                if taxon in m:
-                    for charlabel, val in m[taxon].items():
-                        row['{}.{}'.format(i, charlabel)] = val
-                else:
-                    for charlabel in charlabels[i]:
-                        row['{}.{}'.format(i, charlabel)] = None
-            matrix[taxon] = row
+            datatype = nex.characters.FORMAT.datatype if nex.characters.FORMAT else 'STANDARD'
+            if last_datatype and last_datatype != datatype:
+                raise ValueError(
+                    'Only CHARACTER or DATA blocks of the same datatype can be combined!')
+            last_datatype = datatype
+            matrices[i] = nex.characters.get_matrix()
+
+    matrix = merged_matrix(matrices, taxa)
 
     # Add all translated trees.
     trees = []
@@ -69,7 +58,7 @@ def combine(*nexus: Nexus, **kw) -> Nexus:
         if nex.TREES:
             for tree in nex.TREES.trees:
                 nwk = nex.TREES.translate(tree) if nex.TREES.TRANSLATE else tree.newick
-                trees.append(('{}.{}'.format(i, tree.name), nwk, tree.rooted))
+                trees.append((f'{i}.{tree.name}', nwk, tree.rooted))
 
     nex = Nexus()
     if taxa:
@@ -80,3 +69,24 @@ def combine(*nexus: Nexus, **kw) -> Nexus:
         nex.append_block(Trees.from_data(*trees))
 
     return nex
+
+
+def merged_matrix(
+        matrices: typing.OrderedDict[int, StateMatrix],
+        taxa: typing.List[str],
+) -> StateMatrix:
+    """Merge matrices."""
+    matrix = collections.OrderedDict()
+    if matrices:
+        for taxon in taxa:
+            row = collections.OrderedDict()
+            for i, m in matrices.items():
+                charlabels = list(list(m.values())[0].keys())
+                if taxon in m:
+                    for charlabel, val in m[taxon].items():
+                        row['{}.{}'.format(i, charlabel)] = val  # pylint: disable=C0209
+                else:
+                    for charlabel in charlabels:
+                        row['{}.{}'.format(i, charlabel)] = None  # pylint: disable=C0209
+            matrix[taxon] = row
+    return matrix

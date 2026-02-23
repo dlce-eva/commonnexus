@@ -172,7 +172,7 @@ class Dimensions(Payload):
 
     def check(self) -> None:
         """Make sure dimensions are known."""
-        assert self.nchar and ((not self.newtaxa) or self.ntax)
+        assert self.nchar and ((not self.newtaxa) or self.ntax), str(self)
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover

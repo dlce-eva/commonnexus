@@ -1,6 +1,8 @@
+import collections
+
 import pytest
 
-from commonnexus.tools.matrix import CharacterMatrix
+from commonnexus.tools.matrix import CharacterMatrix, DropSpec, DropChars
 from commonnexus.blocks.characters import GAP
 
 
@@ -74,10 +76,10 @@ t2 10{01}yx;
     assert matrix.has_gaps
     assert matrix.has_polymorphic
     assert matrix.has_uncertain
-    m = CharacterMatrix.from_characters(matrix, drop_uncertain=True, drop_polymorphic=True)
+    m = CharacterMatrix.from_characters(matrix, DropSpec(uncertain=True, polymorphic=True))
     assert len(m.characters) == 3
     assert m.to_fasta()
-    m = CharacterMatrix.from_characters(matrix, drop_constant=True)
+    m = CharacterMatrix.from_characters(matrix, DropSpec(constant=True))
     assert len(m.characters) == 4
 
     with pytest.raises(Exception):
@@ -88,17 +90,17 @@ t2 10{01}yx;
 
 
 @pytest.mark.parametrize(
-    'row,kw',
+    'row,drop_spec',
     [
-        (['0', '1', None], dict(drop_missing=True)),
-        (['0', GAP, '1'], dict(drop_gapped=True)),
-        (['0', '1'], dict(drop_chars=['c'])),
-        (['0', '1'], dict(drop_chars=['x'], inverse=True)),
+        (['0', '1', None], DropSpec(missing=True)),
+        (['0', GAP, '1'], DropSpec(gapped=True)),
+        (['0', '1'], DropSpec(chars=DropChars(chars=['c']))),
+        (['0', '1'], DropSpec(chars=DropChars(chars=['x'], inverse=True))),
     ]
 )
-def test_from_characters(row, kw):
+def test_from_characters(row, drop_spec):
     m = CharacterMatrix.from_characters(
-        {'t{}'.format(i + 1): dict(c=v) for i, v in enumerate(row)}, **kw)
+        {'t{}'.format(i + 1): dict(c=v) for i, v in enumerate(row)}, drop_spec)
     assert not m.characters
 
 

@@ -28,12 +28,24 @@ def nex2(nexus):
 @pytest.fixture
 def nex3(nexus):
     return nexus(DATA="""
-            Dimensions ntax=3 nchar=1;
-            Format datatype=standard symbols="345" gap=-;
+            Dimensions ntax=3 nchar=2;
+            Format datatype=standard symbols="3459" gap=-;
             Matrix
-            Betty              3
-            Boris              4
-            Simon              5
+            Betty              39
+            Boris              49
+            Simon              59
+            ;""")
+
+
+@pytest.fixture
+def nex4(nexus):
+    return nexus(DATA="""
+            Dimensions ntax=3 nchar=1;
+            Format datatype=DNA symbols="atcg" gap=-;
+            Matrix
+            Betty              t
+            Boris              t
+            Simon              t
             ;""")
 
 
@@ -43,12 +55,17 @@ def test_combine_simple(nex1, nex2):
     assert matrix['Simon'] == {'1.1': '2', '2.1': '4'}
 
 
-def test_combine_missing(nex1, nex3):
-    matrix = combine(nex1, nex3).characters.get_matrix()
-    assert matrix['Harry'] == {'1.1': '1', '2.1': None}
-    assert matrix['Simon'] == {'1.1': '2', '2.1': '5'}
-    assert matrix['Betty'] == {'1.1': None, '2.1': '3'}
-    assert matrix['Boris'] == {'1.1': None, '2.1': '4'}
+def test_combine_error(nex1, nex4):
+    with pytest.raises(ValueError):
+        combine(nex1, nex4)
+
+
+def test_combine_missing(nex1, nex3, nexus):
+    matrix = combine(nex1, nexus(), nex3).characters.get_matrix()
+    assert matrix['Harry'] == {'1.1': '1', '3.1': None, '3.2': None}
+    assert matrix['Simon'] == {'1.1': '2', '3.1': '5', '3.2': '9'}
+    assert matrix['Betty'] == {'1.1': None, '3.1': '3', '3.2': '9'}
+    assert matrix['Boris'] == {'1.1': None, '3.1': '4', '3.2': '9'}
 
 
 def test_combine_iterated(nex1):
@@ -93,6 +110,14 @@ def test_combine_with_character_labels(nexus):
     row = list(newnex.characters.get_matrix().values())[0]
     assert len(row) == 6, "Characters not aggregated"
     assert '1.char1' in row and ('2.char1' in row), "charlabels not prefixed"
+    assert '1.char2' in row
+    assert row == {
+        '1.char1': '1',
+        '1.char2': '2',
+        '1.char3': '3',
+        '2.char1': '4',
+        '2.char2': '5',
+        '2.char3': '6'}
 
 
 def test_combine_trees(nexus):

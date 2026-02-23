@@ -8,19 +8,20 @@ import random
 
 from commonnexus.blocks import Trees
 from commonnexus.cli_util import (
-    add_nexus, add_flag, list_of_ranges, validate_operations, add_rename,
+    add_nexus, add_flag, list_of_ranges, validate_operations, add_rename, LambdaOrTupleType,
 )
 
 
 class Ops(enum.Enum):
-    drop = 1
-    sample = 2
-    random = 3
-    strip_comments = 4
-    rename = 5
+    """Available operations, aka subsubcommands."""
+    drop = 1  # pylint: disable=invalid-name
+    sample = 2  # pylint: disable=invalid-name
+    random = 3  # pylint: disable=invalid-name
+    strip_comments = 4  # pylint: disable=invalid-name
+    rename = 5  # pylint: disable=invalid-name
 
 
-def register(parser):
+def register(parser):  # pylint: disable=missing-function-docstring
     add_nexus(parser)
     parser.add_argument(
         "--drop",
@@ -53,44 +54,64 @@ def register(parser):
     add_flag(parser, 'describe', 'list 1-based index, names and rooting of trees')
 
 
-def run(args):
+def run(args):  # pylint: disable=missing-function-docstring
     validate_operations(args)
     if args.describe:
         args.log.info('Trees\nindex\tname\trooted')
         for i, tree in enumerate(args.nexus.TREES.trees, start=1):
-            print('{}\t{}\t{}'.format(i, tree.name, tree.rooted))
+            print('{}\t{}\t{}'.format(i, tree.name, tree.rooted))  # pylint: disable=C0209
         return
 
     trees = [cmd for cmd in args.nexus.TREES if cmd.name == 'TREE']
     if args.drop:
-        for i, tree in enumerate(trees, start=1):
-            if i in args.drop:
-                args.nexus.remove(tree)
+        drop(args.drop, args.nexus, trees)
     elif args.sample:
-        for i, tree in enumerate(trees, start=1):
-            if i % args.sample != 0:
-                args.nexus.remove(tree)
+        sample(args.sample, args.nexus, trees)
     elif args.random:
-        sampled = random.sample(trees, args.random)
-        for tree in trees:
-            if tree not in sampled:
-                args.nexus.remove(tree)
+        random_(args.random, args.nexus, trees)
     elif args.strip_comments:
-        trees = []
-        for tree in args.nexus.TREES.trees:
-            trees.append((tree.name, tree.newick.strip_comments(), tree.rooted))
-        labels = args.nexus.TREES.TRANSLATE.mapping if args.nexus.TREES.TRANSLATE else {}
-        args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees, **labels))
+        strip_comments(args.nexus)
     elif args.rename:
-        trees = []
-        for number, tree in enumerate(args.nexus.TREES.trees, start=1):
-            tname = tree.name
-            if callable(args.rename):
-                tname = args.rename(tree.name)
-            elif args.rename[0] == str(number) or args.rename[0] == tree.name:
-                tname = args.rename[1]
-            trees.append((tname, tree.newick, tree.rooted))
-        labels = args.nexus.TREES.TRANSLATE.mapping if args.nexus.TREES.TRANSLATE else {}
-        args.nexus.replace_block(args.nexus.TREES, Trees.from_data(*trees, **labels))
+        rename(args.rename, args.nexus)
 
     print(args.nexus)
+
+
+def drop(what, nexus, trees):  # pylint: disable=missing-function-docstring
+    for i, tree in enumerate(trees, start=1):
+        if i in what:
+            nexus.remove(tree)
+
+
+def sample(num, nexus, trees):  # pylint: disable=missing-function-docstring
+    for i, tree in enumerate(trees, start=1):
+        if i % num != 0:
+            nexus.remove(tree)
+
+
+def random_(num, nexus, trees):  # pylint: disable=missing-function-docstring
+    sampled = random.sample(trees, num)
+    for tree in trees:
+        if tree not in sampled:
+            nexus.remove(tree)
+
+
+def strip_comments(nexus):  # pylint: disable=missing-function-docstring
+    trees = []
+    for tree in nexus.TREES.trees:
+        trees.append((tree.name, tree.newick.strip_comments(), tree.rooted))
+    labels = nexus.TREES.TRANSLATE.mapping if nexus.TREES.TRANSLATE else {}
+    nexus.replace_block(nexus.TREES, Trees.from_data(*trees, **labels))
+
+
+def rename(what: LambdaOrTupleType, nexus):  # pylint: disable=missing-function-docstring
+    trees = []
+    for number, tree in enumerate(nexus.TREES.trees, start=1):
+        tname = tree.name
+        if callable(what):
+            tname = what(tree.name)
+        elif what[0] == str(number) or what[0] == tree.name:
+            tname = what[1]
+        trees.append((tname, tree.newick, tree.rooted))
+    labels = nexus.TREES.TRANSLATE.mapping if nexus.TREES.TRANSLATE else {}
+    nexus.replace_block(nexus.TREES, Trees.from_data(*trees, **labels))

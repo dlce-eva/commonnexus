@@ -11,6 +11,7 @@ import argparse
 from commonnexus import Nexus
 
 NEXUS = re.compile(r'(?:^|(?<=;|\s))(#nexus)', re.IGNORECASE | re.MULTILINE)
+LambdaOrTupleType = typing.Union[typing.Tuple[str, ...], typing.Callable[[str], str]]
 
 
 class Operation(enum.Enum):
@@ -97,7 +98,7 @@ def add_flag(parser: argparse.ArgumentParser, name: str, help_: str) -> None:
     parser.add_argument(f'--{name}', action='store_true', default=False, help=help_)
 
 
-def lambda_or_tuple(s: str) -> typing.Union[typing.Tuple[str, ...], typing.Callable[[str], str]]:
+def lambda_or_tuple(s: str) -> LambdaOrTupleType:
     """Parse rename option - either a lambda function or a mapping 'old,new'."""
     if s.startswith('lambda'):
         return eval(s)  # pylint: disable=eval-used

@@ -3,13 +3,30 @@ Tools to manipulate matrices as returned by
 :meth:`commonnexus.blocks.characters.Characters.get_matrix`.
 """
 import string
+import typing
 import textwrap
 import collections
-import typing
+import dataclasses
 
 from commonnexus.blocks.characters import GAP, State, StateMatrix
 
 HashableState = typing.Union[None, str, typing.FrozenSet[str], typing.Tuple[str]]
+
+
+@dataclasses.dataclass
+class DropChars:
+    chars: typing.Optional[typing.Iterable[str]] = dataclasses.field(default_factory=set)
+    inverse: bool = False
+
+
+@dataclasses.dataclass
+class DropSpec:
+    chars: DropChars = dataclasses.field(default_factory=DropChars)
+    uncertain: bool = False
+    polymorphic: bool = False
+    missing: bool = False
+    gapped: bool = False
+    constant: bool = False
 
 
 class CharacterMatrix(collections.OrderedDict):
@@ -149,39 +166,34 @@ class CharacterMatrix(collections.OrderedDict):
         return cls(multistate_matrix)
 
     @classmethod
-    def from_characters(cls,
-                        matrix: StateMatrix,
-                        drop_chars: typing.Optional[typing.Iterable[str]] = None,
-                        inverse: bool = False,
-                        drop_uncertain: bool = False,
-                        drop_polymorphic: bool = False,
-                        drop_missing: bool = False,
-                        drop_gapped: bool = False,
-                        drop_constant: bool = False) -> 'CharacterMatrix':
+    def from_characters(
+            cls,
+            matrix: StateMatrix,
+            drop: DropSpec = DropSpec(),
+    ) -> 'CharacterMatrix':
         """
         :param chars:
         :param inverse:
         :return: A **new** matrix constructed as copy, omitting specified characters.
         """
-        drop_chars = drop_chars or set()
         matrix = cls(matrix)
         taxa, characters = matrix.taxa, matrix.characters
         res = collections.OrderedDict([(t, collections.OrderedDict()) for t in matrix])
         for i, col in enumerate(matrix.iter_columns()):
             char = characters[i]
-            if drop_chars and not inverse and (char in drop_chars):
+            if drop.chars.chars and (not drop.chars.inverse) and (char in drop.chars.chars):
                 continue
-            if drop_chars and inverse and (char not in drop_chars):
+            if drop.chars.chars and drop.chars.inverse and (char not in drop.chars.chars):
                 continue
-            if drop_uncertain and any(isinstance(v, set) for v in col):
+            if drop.uncertain and any(isinstance(v, set) for v in col):
                 continue
-            if drop_polymorphic and any(isinstance(v, tuple) for v in col):
+            if drop.polymorphic and any(isinstance(v, tuple) for v in col):
                 continue
-            if drop_missing and any(v is None for v in col):
+            if drop.missing and any(v is None for v in col):
                 continue
-            if drop_gapped and any(v == GAP for v in col):
+            if drop.gapped and any(v == GAP for v in col):
                 continue
-            if drop_constant and \
+            if drop.constant and \
                     len(set(frozenset(v) if isinstance(v, set) else v for v in col)) == 1:
                 continue
             for j, v in enumerate(col):
@@ -189,6 +201,7 @@ class CharacterMatrix(collections.OrderedDict):
         return cls(res)
 
     def to_phylip(self) -> str:
+        """Convert to phylip format"""
         def phylip_name(s):
             res = ''
             for c in s:
@@ -205,13 +218,13 @@ class CharacterMatrix(collections.OrderedDict):
         if self.has_gaps and '-' in self.symbols:
             raise ValueError('Gap symbol - used as state symbol')  # pragma: no cover
 
-        res = ["    {}   {}".format(len(self.taxa), len(self.characters))]
+        res = [f"    {len(self.taxa)}   {len(self.characters)}"]
         for taxon, states in self.items():
             seq = ''
             for state in states.values():
                 assert isinstance(state, str) or state is None
                 seq += '?' if state is None else ('-' if state == GAP else state)
-            res.append('{}{}'.format(phylip_name(taxon), seq))
+            res.append(f'{phylip_name(taxon)}{seq}')
         return '\n'.join(res)
 
     def to_fasta(self) -> str:
@@ -239,7 +252,7 @@ class CharacterMatrix(collections.OrderedDict):
             seq = ''.join(
                 '-' if state is None or state == GAP else digits.get(state, state)
                 for state in states.values())
-            res.append('> {}'.format(taxon))
+            res.append(f'> {taxon}')
             res.extend(textwrap.wrap(seq, 70))
         return '\n'.join(res)
 

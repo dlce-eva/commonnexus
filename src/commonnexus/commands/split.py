@@ -10,7 +10,7 @@ from commonnexus.cli_util import add_nexus
 from commonnexus import Nexus
 
 
-def register(parser):
+def register(parser):  # pylint: disable=missing-function-docstring
     add_nexus(parser)
     parser.add_argument(
         '--stem',
@@ -22,13 +22,16 @@ def register(parser):
         default='.')
 
 
-def run(args):
-    for block, suffix in dict(TREES='trees', CHARACTERS='nex').items():
+def run(args):  # pylint: disable=missing-function-docstring
+    for block, suffix in {'TREES': 'trees', 'CHARACTERS': 'nex'}.items():
         for i, block in enumerate(args.nexus.blocks[block], start=1):
             blocks = [block]
             if 'TAXA' in block.linked_blocks:
                 blocks.insert(0, block.linked_blocks['TAXA'])
             nex = Nexus.from_blocks(*blocks)
-            p = pathlib.Path(args.outdir) / '{}_{}.{}'.format(args.stem, block.title or i, suffix)
+            # We do not use a f-string below, because this will lead pylint to flag suffix and i as
+            # unused variables!
+            p = pathlib.Path(args.outdir) / '{}_{}.{}'.format(  # pylint: disable=C0209
+                args.stem, block.title or i, suffix)
             nex.to_file(p)
-            args.log.info('CHARACTERS block written to {}'.format(p))
+            args.log.info(f'CHARACTERS block written to {p}')
