@@ -25,6 +25,7 @@ NEXUS data:
 
 .. autoclass:: commonnexus.nexus.Nexus
     :members:
+    :noindex: append_block, remove_block, replace_block
     :special-members:
 
 

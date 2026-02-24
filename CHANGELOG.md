@@ -1,9 +1,11 @@
 # Changes
 
 
-## Unreleased
+## [v2.0.0] - 2026-02-23
 
 - Drop python 3.8 compatibility.
+- Completely linted codebase.
+- Re-implemented several collections of NEXUS keywords as enums.
 
 
 ## [v.1.9.3]
