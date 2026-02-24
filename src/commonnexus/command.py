@@ -1,11 +1,11 @@
 """
 Commands are the building blocks of NEXUS files.
 """
-import typing
+from typing import Optional
 import functools
 import itertools
 
-from .tokenizer import TokenType, iter_tokens, Token, get_name
+from .tokenizer import TokenType, Token, get_name, get_tokens, TokenGenerator
 
 
 class Command(tuple):
@@ -29,20 +29,22 @@ class Command(tuple):
 
     @classmethod
     def from_name_and_payload(
-            cls, name: str, payload: str = '', comment: typing.Optional[str] = None) -> 'Command':
+            cls, name: str, payload: str = '', comment: Optional[str] = None) -> 'Command':
         """Create a `Command` instance from its constituent text components."""
         tokens = []
         if comment:
             tokens.extend([Token('\n', TokenType.WHITESPACE), Token(comment, TokenType.COMMENT)])
         tokens.append(Token('\n', TokenType.WHITESPACE))
-        name = list(iter_tokens(iter(name)))
+        name = get_tokens(name)
         assert len(name) == 1 and name[0].type == TokenType.WORD
         tokens.extend(name)
         semicolons = 0
         if payload:
+            # Normalize whitespace between name and payload.
             tokens.append(Token(' ', TokenType.WHITESPACE))
-            payload = list(iter_tokens(iter(payload)))
+            payload = get_tokens(payload)
             semicolons = len([t for t in payload if t.is_semicolon])
+            # Allow for missing final semicolon in payload.
             assert semicolons == 0 or (semicolons == 1 and payload[-1].is_semicolon)
             tokens.extend(payload)
         if semicolons == 0:
@@ -116,7 +118,7 @@ class Command(tuple):
     def iter_payload_tokens(
             self,
             type: TokenType = None  # pylint: disable=redefined-builtin
-    ) -> typing.Generator[Token, None, None]:
+    ) -> TokenGenerator:
         """Generate the payload tokens of a command, i.e. tokens after the name of the command."""
         found = False
         for t in itertools.dropwhile(

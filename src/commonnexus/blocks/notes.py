@@ -1,12 +1,12 @@
 """
 Functionality related to reading and writing NEXUS NOTES blocks.
 """
-import typing
+from typing import TYPE_CHECKING, Optional, Union, Literal
 
 from commonnexus.tokenizer import iter_key_value_pairs, Word, TokenOrString
 from .base import Block, Payload
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
 
 
@@ -38,16 +38,16 @@ class Text(Payload):
     whitespace or punctuation, it needs to be surrounded by single quotes, with any contained
     single quotes converted to a pair of single quotes.
 
-    :ivar typing.List[str] taxons: list of taxon labels or numbers the text relates to.
+    :ivar list[str] taxons: list of taxon labels or numbers the text relates to.
     """
     def __init__(self, tokens=None, nexus=None, **kw):
         super().__init__(tokens, nexus=nexus)
-        self.taxons: typing.Optional[typing.List[TokenOrString]] = None
-        self.characters: typing.Optional[typing.List[TokenOrString]] = None
-        self.states: typing.Optional[typing.List[TokenOrString]] = None
-        self.trees: typing.Optional[typing.List[TokenOrString]] = None
-        self.source: typing.Union[None, typing.Literal["FILE"], typing.Literal["INLINE"]] = None
-        self.text: typing.Optional[TokenOrString] = None
+        self.taxons: Optional[list[TokenOrString]] = None
+        self.characters: Optional[list[TokenOrString]] = None
+        self.states: Optional[list[TokenOrString]] = None
+        self.trees: Optional[list[TokenOrString]] = None
+        self.source: Optional[Literal["FILE", "INLINE"]] = None
+        self.text: Optional[TokenOrString] = None
 
         if self._tokens is None:
             for k, v in kw.items():
@@ -75,9 +75,8 @@ class Text(Payload):
     def as_payload(self) -> str:
         """Returns a string representation of the payload."""
         res = []
-        for attr, label in [
-            (self.taxons, 'TAXON'), (self.characters, 'CHARACTER'), (self.trees, 'TREE')
-        ]:
+        for label in ['TAXON', 'CHARACTER', 'TREE']:
+            attr = getattr(self, label.lower() + 's')
             if attr:
                 numbers = ' '.join(self.nexus.get_numbers(label, attr) if self.nexus else attr)
                 if ' ' in numbers:
@@ -182,30 +181,25 @@ class Notes(Block):
     @classmethod
     def from_data(  # pylint: disable=too-many-arguments,arguments-differ
             cls,
-            texts: typing.List[typing.Dict[str, typing.Union[typing.List[str], str]]],
-            comment: typing.Optional[str] = None,
-            nexus: typing.Optional["Nexus"] = None,
+            texts: list[dict[str, Union[list[str], str]]],
+            comment: Optional[str] = None,
+            nexus: Optional["Nexus"] = None,
             *,
-            TITLE: typing.Optional[str] = None,
-            ID: typing.Optional[str] = None,
-            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+            TITLE: Optional[str] = None,
+            ID: Optional[str] = None,
+            LINK: Optional[Union[str, tuple[str, str]]] = None,
     ) -> 'Block':
         cmds = [('TEXT', Text(nexus=nexus, **text).as_payload()) for text in texts]
         return cls.from_commands(cmds, nexus=nexus, TITLE=TITLE, ID=ID, LINK=LINK, comment=comment)
 
     @property
-    def texts(self) -> typing.List[Text]:
+    def texts(self) -> list[Text]:
         """Return all texts."""
         return self.commands['TEXT']
 
-    def get_texts(
-            self,
-            taxon=None,
-            character=None,
-            tree=None,
-    ) -> typing.List[Text]:
+    def get_texts(self, taxon=None, character=None, tree=None) -> list[Text]:
         """Return filtered list of texts."""
-        def matches(item: str, attr: typing.List[TokenOrString]) -> bool:
+        def matches(item: str, attr: list[TokenOrString]) -> bool:
             return item and attr and item in attr
 
         res = []

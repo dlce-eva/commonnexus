@@ -2,13 +2,14 @@
 """
 Functionality related to reading and writing NEXUS CHARACTER blocks.
 """
-import types
-import typing
+import enum
+from typing import TYPE_CHECKING, Union, Optional, Callable, Any
 import warnings
 import functools
 import itertools
 import collections
 import dataclasses
+from collections.abc import Iterable, Iterator
 
 from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import (
@@ -18,21 +19,21 @@ from commonnexus.tokenizer import (
 from .base import Block, Payload
 from .taxa import Taxlabels
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus import Nexus
 
 # A state in a CHARACTERS matrix may be missing, gapped, a state symbol or uncertain/polymorphic
 # states.
-State = typing.Union[None, str, typing.Set[str], typing.Tuple[str]]
-StateMatrix = typing.OrderedDict[str, typing.OrderedDict[str, State]]
-StateList = typing.List[State]
+State = Union[None, str, set[str], tuple[str]]
+StateMatrix = collections.OrderedDict[str, collections.OrderedDict[str, State]]
+StateList = list[State]
 
 GAP = '\uFFFD'  # REPLACEMENT CHARACTER used to replace an [...] unrepresentable character
 #: Some - but not all - punctuation is invalid as (special) state symbol.
 INVALID_SYMBOLS = "()[]{}/\\,;:=*'\"*`<>^"
 
 
-def apply_to_state(func, state, *args, **kw):
+def apply_to_state(func: Callable[[Union[State, None], ...], Any], state: State, *args, **kw):
     """Applying a function to a state needs to take the different types of state into account."""
     # We have to do a bit of mapping and renaming, which always needs to deal with the
     # three different types of state.
@@ -63,22 +64,18 @@ class CharacterMatrixRow:
 class MatrixData:
     """Matrix data and metadata suitable for formatting in the NEXUS format."""
     # The matrix rows formatted for NEXUS
-    rows: typing.List[str] = dataclasses.field(default_factory=list)
+    rows: list[str] = dataclasses.field(default_factory=list)
     # Taxon IDs mapped to labels
-    taxon_labels: typing.Dict[str, str] = dataclasses.field(default_factory=dict)
+    taxon_labels: dict[str, str] = dataclasses.field(default_factory=dict)
     # Character IDs mapped to labels
-    character_labels: typing.OrderedDict[str, str] = dataclasses.field(default_factory=dict)
+    character_labels: collections.OrderedDict[str, str] = dataclasses.field(default_factory=dict)
     # Symbols used in the matrix
-    symbols: typing.Set[str] = dataclasses.field(default_factory=set)
+    symbols: set[str] = dataclasses.field(default_factory=set)
 
     @classmethod
-    def from_statematrix(
-            cls,
-            matrix: StateMatrix,
-            symbol: typing.Callable[[str], str],
-    ) -> 'MatrixData':
+    def from_statematrix(cls, matrix: StateMatrix, symbol: Callable[[str], str]) -> 'MatrixData':
         """Read data and metadata from a StateMatrix instance."""
-        def get_symbol(entry):
+        def get_symbol(entry: State) -> str:
             if isinstance(entry, tuple):  # polymorphism -> ()
                 return f"({''.join(symbol(c) for c in entry)})"
             if isinstance(entry, set):  # uncertainty -> {}
@@ -141,14 +138,14 @@ class Dimensions(Payload):
     command in the block, is optional, unless NEWTAXA is specified, in which case it is required.
 
     :ivar bool newtaxa:
-    :ivar typing.Optional[int] ntax:
+    :ivar Optional[int] ntax:
     :ivar int nchar:
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.newtaxa = False
-        self.ntax = None
-        self.char = None
+        self.newtaxa: bool = False
+        self.ntax: Optional[int] = None
+        self.nchar: Optional[int] = None
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         while 1:
             try:
@@ -176,6 +173,55 @@ class Dimensions(Payload):
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover
+
+
+class FormatSubcommand(enum.Enum):
+    """Subcommand names appearing in Format commands."""
+    DATATYPE = enum.auto()
+    MISSING = enum.auto()
+    MATCHCHAR = enum.auto()
+    GAP = enum.auto()
+    STATESFORMAT = enum.auto()
+    RESPECTCASE = enum.auto()
+    TRANSPOSE = enum.auto()
+    INTERLEAVE = enum.auto()
+    NOLABELS = enum.auto()
+    LABELS = enum.auto()
+    NOTOKENS = enum.auto()
+    TOKENS = enum.auto()
+    SYMBOLS = enum.auto()
+    EQUATE = enum.auto()
+    ITEMS = enum.auto()
+
+
+class Datatype(enum.Enum):
+    """Valid datatypes for character data."""
+    STANDARD = 1
+    DNA = 2
+    RNA = 3
+    NUCLEOTIDE = 4
+    PROTEIN = 5
+    CONTINUOUS = 6
+
+
+class Item(enum.Enum):
+    """Valid items for character matrix."""
+    STATES = 1
+    MIN = 2
+    MAX = 3
+    MEDIAN = 4
+    AVERAGE = 5
+    VARIANCE = 6
+    STDERROR = 7
+    SAMPLESIZE = 8
+
+
+class Statesformat(enum.Enum):
+    """Valid STATESFORMAT values."""
+    STATESPRESENT = 1
+    INDIVIDUALS = 2
+    COUNT = 3
+    FREQUENCY = 4
 
 
 class Format(Payload):  # pylint: disable=too-many-instance-attributes
@@ -380,19 +426,19 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
 
         .. warning:: ``TOKENS`` is currently not supported in `commonnexus`.
 
-    :ivar str datatype:
+    :ivar Datatype datatype:
     :ivar bool respectcase:
     :ivar str missing:
-    :ivar typing.Optional[str] gap:
-    :ivar typing.List[str] symbols:
-    :ivar typing.Dict[str, str] equate:
-    :ivar typing.Optional[str] matchchar:
-    :ivar typing.Optional[bool] labels:
+    :ivar Optional[str] gap:
+    :ivar list[str] symbols:
+    :ivar dict[str, State] equate:
+    :ivar Optional[str] matchchar:
+    :ivar Optional[bool] labels:
     :ivar bool transpose:
     :ivar bool interleave:
-    :ivar typing.List[str] items:
-    :ivar typing.Optional[str] statesformat:
-    :ivar typing.Optional[bool] tokens:
+    :ivar list[Item] items:
+    :ivar Optional[str] statesformat:
+    :ivar Optional[bool] tokens:
 
     .. note::
 
@@ -402,53 +448,38 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.datatype = None
-        self.respectcase = False
-        self.missing = '?'
-        self.gap = None
-        self.symbols = ['0', '1']  # The default for DATATYPE=STANDARD
-        self.equate = {}
-        self.matchchar = None if nexus and nexus.cfg.no_default_matchchar else '.'
-        self.labels = None
-        self.transpose = False
-        self.interleave = False
-        self.items = []
-        self.statesformat = None
-        self.tokens = None
-        self.explicit_symbols = False
-
-        if tokens is None:
-            return
+        self.datatype: Optional[Datatype] = None
+        self.respectcase: bool = False
+        self.missing: str = '?'
+        self.gap: Optional[str] = None
+        self.symbols: list[str] = ['0', '1']  # The default for DATATYPE=STANDARD
+        self.equate: dict[str, State] = {}
+        self.matchchar: Optional[str] = \
+            None if nexus and nexus.cfg.no_default_matchchar else '.'
+        self.labels: Optional[bool] = None
+        self.transpose: bool = False
+        self.interleave: bool = False
+        self.items: list[Item] = []
+        self.statesformat: Statesformat = Statesformat.STATESPRESENT
+        self.tokens: Optional[bool] = None
+        self.explicit_symbols: bool = False
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         self._parse(words, functools.partial(word_after_equals, words))
 
         if self.datatype:
-            self.datatype = self.datatype.upper()
-            assert self.datatype in {
-                'STANDARD', 'DNA', 'RNA', 'NUCLEOTIDE', 'PROTEIN', 'CONTINUOUS'}
-            if self.datatype == 'CONTINUOUS' and not self.nexus.cfg.ignore_unsupported:
+            if self.datatype == Datatype.CONTINUOUS and not self.nexus.cfg.ignore_unsupported:
                 raise NotImplementedError('DATATYPE=CONTINUOUS is not supported!')
-        self.items = [i.upper() for i in self.items]
-        assert all(
-            i in 'MIN MAX MEDIAN AVERAGE VARIANCE STDERROR SAMPLESIZE STATES'.split()
-            for i in self.items)
+
         if not self.items:
-            self.items = ['STATES']
-        if self.items != ['STATES']:
+            self.items = [Item.STATES]
+        if self.items != [Item.STATES]:
             raise NotImplementedError('Only ITEMS=STATES is supported!')
-        if self.statesformat:
-            self.statesformat = self.statesformat.upper()
-            assert self.statesformat in {'STATESPRESENT', 'INDIVIDUALS', 'COUNT', 'FREQUENCY'}
-        else:
-            self.statesformat = 'STATESPRESENT'
-        if self.statesformat != 'STATESPRESENT':
+
+        if self.statesformat != Statesformat.STATESPRESENT:
             raise NotImplementedError(
                 'STATESFORMATs other than STATESPRESENT are not supported')
-        for attr in ['missing', 'gap', 'matchchar']:
-            c = getattr(self, attr)
-            if c:
-                assert len(c) == 1 and c not in INVALID_SYMBOLS
+
         if self.tokens:
             raise NotImplementedError('TOKENS is not supported')
 
@@ -460,8 +491,8 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
         assert not any(c in invalid_equate for c in self.equate)
 
     def _set_symbols_and_equate(self):
-        if self.datatype in {'DNA', 'RNA', 'NUCLEOTIDE'}:
-            T = 'U' if self.datatype == 'RNA' else 'T'  # pylint: disable=invalid-name
+        if self.datatype in {Datatype.DNA, Datatype.RNA, Datatype.NUCLEOTIDE}:
+            T = 'U' if self.datatype == Datatype.RNA else 'T'  # pylint: disable=invalid-name
             self.symbols.extend(list('ACG' + T))
             self.equate.update(
                 R=set('AG'),
@@ -477,51 +508,56 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
                 N=set('ACG' + T),
                 X=set('ACG' + T),
             )
-            if self.datatype == 'NUCLEOTIDE':
+            if self.datatype == Datatype.NUCLEOTIDE:
                 self.equate.update(U='T')
-        elif self.datatype == 'PROTEIN':
+        elif self.datatype == Datatype.PROTEIN:
             self.symbols.extend(list('ACDEFGHIKLMNPQRSTVWY*'))
             self.equate.update(B=set('DN'), Z=set('EQ'))
 
         if not self.respectcase:
             self.equate = {k.upper(): v for k, v in self.equate.items()}
 
-    def _parse(self,
-               words: TokenGenerator,
-               after_equals: typing.Callable[[], TokenOrString]):
-        subcommand, subcommands_set = None, set()
+    def _parse(self, words: TokenGenerator, after_equals: Callable[[], TokenOrString]):
+        subcommand: Optional[FormatSubcommand] = None
+        subcommands_set: set[FormatSubcommand] = set()
         while 1:
             try:
                 word = next(words)
                 if isinstance(word, str):
-                    subcommand = word.upper()
+                    subcommand = getattr(FormatSubcommand, word.upper())
                 elif isinstance(word, Token) and word.text == '=':
-                    if subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE', 'LABELS', 'TOKENS']:
+                    if subcommand in [
+                        FormatSubcommand.RESPECTCASE,
+                        FormatSubcommand.TRANSPOSE,
+                        FormatSubcommand.INTERLEAVE,
+                        FormatSubcommand.LABELS,
+                        FormatSubcommand.TOKENS,
+                    ]:
                         # Some NEXUS variants set boolean subcommands always with "=no|yes"
                         word = next(words).lower()
-                        if subcommand == 'LABELS' and word == 'left':
+                        if subcommand == FormatSubcommand.LABELS and word == 'left':
                             word = 'yes'
-                        setattr(self, subcommand.lower(), BOOLEAN[word])
+                        setattr(self, subcommand.name.lower(), BOOLEAN[word])
                         subcommands_set.add(subcommand)
                     elif subcommand:  # pragma: no cover
                         raise ValueError(subcommand)
 
                 method = {
-                    'DATATYPE': self._parse_default,
-                    'MISSING': self._parse_default,
-                    'MATCHCHAR': self._parse_default,
-                    'GAP': self._parse_default,
-                    'STATESFORMAT': self._parse_default,
-                    'RESPECTCASE': self._parse_default,
-                    'TRANSPOSE': self._parse_default,
-                    'INTERLEAVE': self._parse_default,
-                    'NOLABELS': self._parse_default,
-                    'LABELS': self._parse_default,
-                    'NOTOKENS': self._parse_default,
-                    'TOKENS': self._parse_default,
-                    'SYMBOLS': self._parse_symbols,
-                    'EQUATE': self._parse_equate,
-                    'ITEMS': self._parse_items,
+                    FormatSubcommand.DATATYPE: self._parse_datatype,
+                    FormatSubcommand.MISSING: self._parse_symbol,
+                    FormatSubcommand.MATCHCHAR: self._parse_symbol,
+                    FormatSubcommand.GAP: self._parse_symbol,
+                    FormatSubcommand.STATESFORMAT: self._parse_statesformat,
+                    FormatSubcommand.RESPECTCASE: self._parse_flag,
+                    FormatSubcommand.TRANSPOSE: self._parse_flag,
+                    FormatSubcommand.INTERLEAVE: self._parse_flag,
+                    FormatSubcommand.NOLABELS: self._parse_onoff,
+                    FormatSubcommand.LABELS: self._parse_onoff,
+                    FormatSubcommand.NOTOKENS: self._parse_onoff,
+                    FormatSubcommand.TOKENS: self._parse_onoff,
+                    FormatSubcommand.SYMBOLS: self._parse_symbols,
+                    FormatSubcommand.EQUATE: self._parse_equate,
+                    FormatSubcommand.ITEMS: self._parse_items,
                 }.get(subcommand)
                 if method:
                     method(
@@ -532,22 +568,31 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
             except StopIteration:
                 break
 
-    def _parse_default(self, subcommand, subcommands_set, after_equals, **_):
-        if subcommand in ['DATATYPE', 'MISSING', 'MATCHCHAR', 'GAP', 'STATESFORMAT']:
-            setattr(self, subcommand.lower(), after_equals())
-            if subcommand == 'DATATYPE' and self.datatype.upper() != 'STANDARD':
-                self.symbols = []
-        elif subcommand in ['RESPECTCASE', 'TRANSPOSE', 'INTERLEAVE']:
-            if subcommand not in subcommands_set:
-                setattr(self, subcommand.lower(), True)
-        elif subcommand in ['NOLABELS', 'LABELS', 'NOTOKENS', 'TOKENS']:
-            setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
+    def _parse_datatype(self, after_equals, **_):
+        self.datatype = getattr(Datatype, after_equals().upper())
+        if self.datatype == Datatype.STANDARD:
+            self.symbols = []
+
+    def _parse_statesformat(self, after_equals, **_):
+        self.statesformat = getattr(Statesformat, after_equals().upper())
+
+    def _parse_symbol(self, subcommand, after_equals, **_):
+        c = after_equals()
+        assert c and len(c) == 1 and c not in INVALID_SYMBOLS, f'Invalid symbol: {c}'
+        setattr(self, subcommand.name.lower(), c)
+
+    def _parse_flag(self, subcommand, subcommands_set, **_):
+        if subcommand not in subcommands_set:
+            setattr(self, subcommand.name.lower(), True)
+
+    def _parse_onoff(self, subcommand, **_):
+        setattr(self, subcommand.name.replace('NO', '').lower(), 'NO' not in subcommand.name)
 
     def _parse_items(self, words, after_equals, **_):
         for w in iter_delimited(
                 after_equals(), words, delimiter='()', allow_single_word=True):
             assert isinstance(w, str)
-            self.items.append(w)
+            self.items.append(getattr(Item, w.upper()))
 
     def _parse_symbols(self, words, after_equals, **_):
         self.explicit_symbols = True
@@ -595,15 +640,10 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
     @functools.cached_property
     def lax_symbols(self) -> bool:
         """Whether symbols are handled strict or lax."""
-        return not self.explicit_symbols and self.datatype in {None, 'STANDARD'} \
+        return not self.explicit_symbols and self.datatype in {None, Datatype.STANDARD} \
             and not (self.nexus and self.nexus.cfg.strict)
 
-    def replace_symbol(
-            self,
-            symbol: str,
-            index: int,
-            row: typing.List,
-    ) -> typing.Union[None, str, State]:
+    def replace_symbol(self, symbol: str, index: int, row: list) -> Union[None, str, State]:
         """Replace a symbol with `None` for missing, `GAP` for gap and possibly matching chars."""
         if (self.respectcase and symbol == self.missing) or \
                 (not self.respectcase and (symbol.upper() == self.missing.upper())):
@@ -624,16 +664,20 @@ class Format(Payload):  # pylint: disable=too-many-instance-attributes
             assert symbol in self.symbols, f'{symbol} {self.symbols}'
         return symbol
 
-    def resolve_symbols(
-            self,
-            state: State,
-            index: int,
-            row: typing.List) -> State:
+    def resolve_symbols(self, state: State, index: int, row: list) -> State:
         """Resolve symbols used in state taking into account EQUATE, MATCHCAR etc."""
         def resolve(c, i, r):
             c = self.equate.get(c.upper(), c)  # May result in ambiguous or multiple states!
             return apply_to_state(self.replace_symbol, c, i, r)
         return apply_to_state(resolve, state, index, row)
+
+
+@dataclasses.dataclass(frozen=True)
+class Charstatelabel:
+    """Labels for the states of a character specified by number or name."""
+    number: int
+    name: Union[str, None]
+    states: list[str]
 
 
 class Charstatelabels(Payload):
@@ -659,7 +703,7 @@ class Charstatelabels(Payload):
     number; thus, 1 is not a valid name for the second character listed. State names cannot be
     applied if DATATYPE=CONTINUOUS.
 
-    :ivar typing.List[types.SimpleNamespace] characters:
+    :ivar list[Charstatelabel] characters:
 
     .. code-block:: python
 
@@ -678,7 +722,7 @@ class Charstatelabels(Payload):
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.characters = []
+        self.characters: list[Charstatelabel] = []
         names = set()
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         num, name, states, in_states, comma = None, None, [], False, False
@@ -694,8 +738,7 @@ class Charstatelabels(Payload):
                     if name and name in names:
                         duplicate_charlabel(name, 'CHARSTATELABELS', nexus)
                     names.add(name)
-                    self.characters.append(
-                        types.SimpleNamespace(number=num, name=name, states=states))
+                    self.characters.append(Charstatelabel(number=num, name=name, states=states))
                     num, name, states, in_states = None, None, [], False
                     continue
                 if in_states:
@@ -712,7 +755,7 @@ class Charstatelabels(Payload):
         if num:
             if name and name in names:
                 duplicate_charlabel(name, 'CHARSTATELABELS', nexus)
-            self.characters.append(types.SimpleNamespace(number=num, name=name, states=states))
+            self.characters.append(Charstatelabel(number=num, name=name, states=states))
         elif comma:  # There was a comma, but no new label.
             warnings.warn('Trailing comma in CHARSTATELABELS command')
 
@@ -744,18 +787,18 @@ class Charlabels(Payload):
     CHARSTATELABELS command when writing NEXUS files, although programs should continue to read
     CHARLABELS because many existing NEXUS files use CHARLABELS.
 
-    :ivar typing.List[types.SimpleNamespace] characters:
+    :ivar list[Charstatelabel] characters:
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.characters = []
+        self.characters: list[Charstatelabel] = []
         names = set()
         for i, w in enumerate(iter_words_and_punctuation(self._tokens, nexus=nexus)):
             assert isinstance(w, str)
             if w and w in names:
                 duplicate_charlabel(w, 'CHARLABELS', nexus)
             names.add(w)
-            self.characters.append(types.SimpleNamespace(number=i + 1, name=w, states=[]))
+            self.characters.append(Charstatelabel(number=i + 1, name=w, states=[]))
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover
@@ -785,11 +828,11 @@ class Statelabels(Payload):
     CHARSTATELABELS command when writing NEXUS files, although programs should continue to read
     STATELABELS because many existing NEXUS files use STATELABELS.
 
-    :ivar typing.List[types.SimpleNamespace] characters:
+    :ivar list[Charstatelabel] characters:
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.characters = []
+        self.characters: list[Charstatelabel] = []
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
         num, states = None, []
@@ -802,7 +845,7 @@ class Statelabels(Payload):
                     continue
                 if isinstance(w, Token) and w.text == ',':
                     self.characters.append(
-                        types.SimpleNamespace(number=num, name=None, states=states))
+                        Charstatelabel(number=num, name=None, states=states))
                     num, states = None, []
                     continue
                 assert isinstance(w, str)
@@ -810,7 +853,7 @@ class Statelabels(Payload):
             except StopIteration:
                 break
         if num and states:
-            self.characters.append(types.SimpleNamespace(number=num, name=None, states=states))
+            self.characters.append(Charstatelabel(number=num, name=None, states=states))
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover
@@ -1005,7 +1048,7 @@ class Characters(Block):
     @functools.cached_property
     def matrix_format(self) -> Format:
         """Return the format specification associated with the CHARACTERS block."""
-        return Format(None, self.nexus) if 'FORMAT' not in self.commands else self.FORMAT
+        return Format('', self.nexus) if 'FORMAT' not in self.commands else self.FORMAT
 
     def is_binary(self) -> bool:
         """
@@ -1062,7 +1105,7 @@ class Characters(Block):
         # mapping character labels or numbers to state symbols or labels.
         return self._get_state_matrix(res, taxlabels, nchar, labeled_states)
 
-    def get_taxlabels(self) -> typing.Tuple[int, typing.Dict[int, str]]:
+    def get_taxlabels(self) -> tuple[int, dict[int, str]]:
         """Returns number of taxa and taxon labels."""
         if self.TAXLABELS:
             taxlabels = self.TAXLABELS.labels
@@ -1085,10 +1128,7 @@ class Characters(Block):
             taxlabels = taxlabels or {i + 1: str(i + 1) for i in range(ntax)}
         return ntax, taxlabels
 
-    def get_charstatelabels(self, nchar: int = None) -> typing.Tuple[
-        typing.Dict[int, str],
-        typing.Dict[str, str]
-    ]:
+    def get_charstatelabels(self, nchar: int = None) -> tuple[dict[int, str], dict[str, str]]:
         """Returns character labels and state labels."""
         nchar = nchar or self.DIMENSIONS.nchar
         charlabels = {i + 1: str(i + 1) for i in range(nchar)}
@@ -1129,19 +1169,20 @@ class Characters(Block):
         return res
 
     @classmethod
-    def from_data(cls,  # pylint: disable=too-many-arguments,too-many-positional-arguments,arguments-differ # noqa: E501
-                  matrix: StateMatrix,
-                  taxlabels: bool = False,
-                  statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None,
-                  datatype: str = 'STANDARD',
-                  missing: str = '?',
-                  gap: str = '-',
-                  comment: typing.Optional[str] = None,
-                  nexus: typing.Optional["Nexus"] = None,
-                  TITLE: typing.Optional[str] = None,
-                  ID: typing.Optional[str] = None,
-                  LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None) \
-            -> 'Characters':
+    def from_data(  # pylint: disable=too-many-arguments,too-many-positional-arguments,arguments-differ # noqa: E501
+            cls,
+            matrix: StateMatrix,
+            taxlabels: bool = False,
+            statelabels: Optional[dict[str, dict[str, str]]] = None,
+            datatype: str = 'STANDARD',
+            missing: str = '?',
+            gap: str = '-',
+            comment: Optional[str] = None,
+            nexus: Optional["Nexus"] = None,
+            TITLE: Optional[str] = None,
+            ID: Optional[str] = None,
+            LINK: Optional[Union[str, tuple[str, str]]] = None,
+    ) -> 'Characters':
         """
         Instantiate a CHARACTERS or DATA block from a metrix.
 
@@ -1232,8 +1273,8 @@ class Characters(Block):
     #
     def _get_state_matrix(
             self,
-            raw_matrix: typing.OrderedDict[str, StateList],
-            taxlabels,
+            raw_matrix: collections.OrderedDict[Union[str, int], StateList],
+            taxlabels: dict,
             nchar: int,
             labeled_states: bool
     ) -> StateMatrix:
@@ -1285,22 +1326,22 @@ class Characters(Block):
                 and (self.matrix_format.labels is not False)
                 and (not ntax)):
             raise ValueError("Can't read transposed matrix without NTAX.")  # pragma: no cover
-        if self.matrix_format.datatype == 'CONTINUOUS':  # pragma: no cover
+        if self.matrix_format.datatype == Datatype.CONTINUOUS:  # pragma: no cover
             raise NotImplementedError("Can't read a matrix of datatype CONTINUOUS")
 
     def _parse_matrix_line(
             self,
-            line: typing.Iterable[Token],
+            line: Iterable[Token],
             row: CharacterMatrixRow,
-            res: typing.OrderedDict[str, StateList],
+            res: collections.OrderedDict[str, StateList],
             ncols: int
     ) -> CharacterMatrixRow:
         """Parse a line in a NEXUS matrix into a list of states."""
         def get_symbols(
                 w: TokenOrString,
-                words: typing.Iterator[TokenOrString],
+                words: Iterator[TokenOrString],
                 with_gap: bool = False,
-        ) -> typing.Tuple[TokenOrString, typing.List[str]]:
+        ) -> tuple[TokenOrString, list[str]]:
             """Parse the state of a single cell in a NEXUS matrix."""
             def symbol_or_comma(w):
                 res = (isinstance(w, str)
@@ -1353,10 +1394,10 @@ class Characters(Block):
 
     def _get_lists_of_state(
             self,
-            lines: typing.List[typing.Iterable[Token]],
+            lines: list[Iterable[Token]],
             ncols: int,
             nrows: int,
-    ) -> typing.OrderedDict[str, StateList]:
+    ) -> collections.OrderedDict[str, StateList]:
         res = collections.OrderedDict()
         row = CharacterMatrixRow()
         for i, line in enumerate(lines, start=1):
@@ -1370,27 +1411,31 @@ class Characters(Block):
         return res
 
 
+class GapMode(enum.Enum):
+    """How to interpret gaps."""
+    missing = enum.auto()  # pylint: disable=invalid-name
+    newstate = enum.auto()  # pylint: disable=invalid-name
+
+
 class Options(Payload):
     """
     The GAPMODE subcommand of the OPTIONS command of the ASSUMPTIONS block was originally
     housed in an OPTIONS command in the DATA block.
 
-    :ivar typing.Optional[str] gapmode: `missing` or `newstate`.
+    :ivar Optional[GapMode] gapmode: `missing` or `newstate`.
     """
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
-        self.gapmode = None
+        self.gapmode: Optional[GapMode] = None
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
-
         while 1:
             try:
                 word = next(words)
                 if isinstance(word, str) and word.upper() == 'GAPMODE':
-                    self.gapmode = word_after_equals(words).lower()
+                    self.gapmode = getattr(GapMode, word_after_equals(words).lower())
             except StopIteration:
                 break
-        assert self.gapmode in {None, 'missing', 'newstate'}
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover

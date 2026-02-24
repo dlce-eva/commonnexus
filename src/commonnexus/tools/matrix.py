@@ -3,20 +3,21 @@ Tools to manipulate matrices as returned by
 :meth:`commonnexus.blocks.characters.Characters.get_matrix`.
 """
 import string
-import typing
+from typing import Union, Optional
 import textwrap
 import collections
 import dataclasses
+from collections.abc import Iterable, Generator
 
 from commonnexus.blocks.characters import GAP, State, StateMatrix
 
-HashableState = typing.Union[None, str, typing.FrozenSet[str], typing.Tuple[str]]
+HashableState = Union[None, str, frozenset[str], tuple[str]]
 
 
 @dataclasses.dataclass
 class DropChars:
     """Specification of sites by character label in a matrix to be dropped."""
-    chars: typing.Optional[typing.Iterable[str]] = dataclasses.field(default_factory=set)
+    chars: Optional[Iterable[str]] = dataclasses.field(default_factory=set)
     inverse: bool = False
 
 
@@ -37,30 +38,30 @@ class CharacterMatrix(collections.OrderedDict):
     :meth:`commonnexus.blocks.characters.Characters.get_matrix`, providing
     simpler access to some properties of the data and some conversion functionality.
     """
-    def iter_rows(self) -> typing.Generator[typing.List[State], None, None]:
+    def iter_rows(self) -> Generator[list[State], None, None]:
         """Iterate lists of states per taxon."""
         for row in self.values():
             yield list(row.values())
 
-    def iter_columns(self) -> typing.Generator[typing.List[State], None, None]:
+    def iter_columns(self) -> Generator[list[State], None, None]:
         """Iterate lists of states per character."""
         for char in self.characters:
             yield [self[taxon][char] for taxon in self.taxa]
 
     @property
-    def taxa(self) -> typing.List[str]:
+    def taxa(self) -> list[str]:
         """The list of taxa (labels or numbers) in a matrix."""
         return list(self.keys())
 
     @property
-    def characters(self) -> typing.Union[typing.List[str], None]:
+    def characters(self) -> Union[list[str], None]:
         """The list of characters (labels or numbers) in a matrix."""
         for row in self.values():
             return list(row.keys())
         return None  # pragma: no cover
 
     @property
-    def distinct_states(self) -> typing.Set[HashableState]:
+    def distinct_states(self) -> set[HashableState]:
         """
         The set of distinct states in a matrix (including missing and gap, if found).
         """
@@ -97,7 +98,7 @@ class CharacterMatrix(collections.OrderedDict):
         return False
 
     @property
-    def symbols(self) -> typing.Set[typing.Union[str, typing.FrozenSet[str], typing.Union[str]]]:
+    def symbols(self) -> set[Union[str, frozenset[str], Union[str]]]:
         """The set of state symbols, excluding missing and gapped."""
         res = set()
         for s in self.distinct_states:
@@ -114,7 +115,7 @@ class CharacterMatrix(collections.OrderedDict):
     def binarised(
             cls,
             matrix: StateMatrix,
-            statelabels: typing.Optional[typing.Dict[str, typing.Dict[str, str]]] = None,
+            statelabels: Optional[dict[str, dict[str, str]]] = None,
     ) -> 'CharacterMatrix':
         """Matrix with multistate characters split into binary characters."""
         statelabels = statelabels or {}
@@ -145,8 +146,8 @@ class CharacterMatrix(collections.OrderedDict):
         return cls(new)
 
     @classmethod
-    def multistatised(cls, matrix: StateMatrix, multicharlabel: typing.Optional[str] = None)\
-            -> 'CharacterMatrix':
+    def multistatised(
+            cls, matrix: StateMatrix, multicharlabel: Optional[str] = None) -> 'CharacterMatrix':
         """
         Convert character data of the form 0010000 to a single multi-state character.
         This kind of data may be obtained from coding wordlist data as "word belongs to cognate set"
@@ -163,7 +164,7 @@ class CharacterMatrix(collections.OrderedDict):
 
         multicharlabel = multicharlabel or '1'
         # Seed the resulting matrix with `None`, i.e. "missing" values.
-        multistate_matrix = collections.OrderedDict(
+        multistate_matrix = cls(
             [(t, collections.OrderedDict([(multicharlabel, None)])) for t in matrix])
         for i, charlabel in enumerate(matrix.characters):
             for taxon in matrix:
@@ -173,14 +174,10 @@ class CharacterMatrix(collections.OrderedDict):
                             list(multistate_matrix[taxon][multicharlabel]) + [available_states[i]])
                     else:
                         multistate_matrix[taxon][multicharlabel] = available_states[i]
-        return cls(multistate_matrix)
+        return multistate_matrix
 
     @classmethod
-    def from_characters(
-            cls,
-            matrix: StateMatrix,
-            drop: DropSpec = DropSpec(),
-    ) -> 'CharacterMatrix':
+    def from_characters(cls, matrix: StateMatrix, drop: DropSpec = DropSpec()) -> 'CharacterMatrix':
         """
         :param chars:
         :param inverse:
@@ -188,7 +185,7 @@ class CharacterMatrix(collections.OrderedDict):
         """
         matrix = cls(matrix)
         taxa, characters = matrix.taxa, matrix.characters
-        res = collections.OrderedDict([(t, collections.OrderedDict()) for t in matrix])
+        res = cls([(t, collections.OrderedDict()) for t in matrix])
         for i, col in enumerate(matrix.iter_columns()):
             char = characters[i]
             if drop.chars.chars and (not drop.chars.inverse) and (char in drop.chars.chars):
@@ -208,7 +205,7 @@ class CharacterMatrix(collections.OrderedDict):
                 continue
             for j, v in enumerate(col):
                 res[taxa[j]][char] = v
-        return cls(res)
+        return res
 
     def to_phylip(self) -> str:
         """Convert to phylip format"""
@@ -247,7 +244,7 @@ class CharacterMatrix(collections.OrderedDict):
         if self.has_uncertain or self.has_polymorphic:
             raise ValueError('Cannot convert matrix with uncertain or polymorphic states.')
 
-        digits = {s: None for s in self.symbols if s in string.digits}
+        digits: dict[str, Optional[str]] = {s: None for s in self.symbols if s in string.digits}
         if digits:
             if len(self.symbols) > len(string.ascii_uppercase):  # pragma: no cover
                 raise ValueError('Too many symbols in matrix to replace digits with letters')
@@ -285,13 +282,17 @@ class CharacterMatrix(collections.OrderedDict):
                 t2 BABABA;
             END;
         """
-        def get_row(nchar, seq, taxon):
+        def get_row(
+                nchar: int,
+                seq: list[str],
+                taxon: str,
+        ) -> tuple[int, collections.OrderedDict[str, str]]:
             if nchar is not None:
                 assert len(seq) == nchar, "Only aligned sequences can be converted."
             assert taxon is not None
             return len(seq), collections.OrderedDict([(str(i + 1), c) for i, c in enumerate(seq)])
 
-        res = collections.OrderedDict()
+        res = cls()
         taxon, seq, nchar = None, [], None
         for line in fasta.split('\n'):
             if line.startswith('>'):
@@ -305,4 +306,4 @@ class CharacterMatrix(collections.OrderedDict):
                         seq.append(c)
         if seq:
             _, res[taxon] = get_row(nchar, seq, taxon)
-        return cls(res)
+        return res

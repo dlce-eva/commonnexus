@@ -1,6 +1,7 @@
 import pytest
 
 from commonnexus import Nexus
+from commonnexus.blocks.characters import Datatype
 
 
 @pytest.mark.dendropy
@@ -11,7 +12,7 @@ def test_dendropy_suite(dendropyexample):
         for block in blocks:
             _ = block.commands  # We have to access `commands` to actually parse command payloads.
     if n.characters:
-        if n.characters.FORMAT and n.characters.FORMAT.datatype == 'CONTINUOUS':
+        if n.characters.FORMAT and n.characters.FORMAT.datatype == Datatype.CONTINUOUS:
             pass
         else:
             _ = n.characters.get_matrix()

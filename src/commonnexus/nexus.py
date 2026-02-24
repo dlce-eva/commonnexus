@@ -1,16 +1,17 @@
 """
 Provides a class representing a NEXUS file as list of tokens.
 """
-import typing
+from typing import Union, Optional, Any, Type
 import logging
 import pathlib
 import itertools
 import collections
 import dataclasses
+from collections.abc import Iterable, Generator, Container
 
 from commonnexus.blocks import Block
 from commonnexus.command import Command
-from .tokenizer import TokenType, Token, iter_tokens, get_name
+from .tokenizer import TokenType, iter_tokens, get_name, TokenList, TokenGenerator
 from .util import log_or_raise
 
 __all__ = ['Config', 'Nexus']
@@ -76,11 +77,12 @@ class Nexus(list):
         mixed-case name in the file, the corresponding ``Command`` or ``Block`` object must be
         addressed using the uppercase name.
     """
-    def __init__(self,
-                 s: typing.Optional[typing.Union[typing.Iterable, typing.List[Command]]] = None,
-                 block_implementations: typing.Optional[typing.Dict[str, Block]] = None,
-                 config: typing.Optional[Config] = None,
-                 **kw):
+    def __init__(
+            self,
+            s: Optional[Union[Iterable, list[Command]]] = None,
+            block_implementations: Optional[dict[str, Block]] = None,
+            config: Optional[Config] = None,
+            **kw) -> None:
         """
         :param s: The NEXUS content.
         :param block_implementations: Custom implementations for non-public blocks.
@@ -98,10 +100,10 @@ class Nexus(list):
 
             >>> nex = Nexus(config=Config(encoding='latin'))
         """
-        self.cfg = config or Config(**kw)
-        self.trailing_whitespace = []
-        self.leading = []
-        self.block_implementations = {}
+        self.cfg: Config = config or Config(**kw)
+        self.trailing_whitespace: TokenList = []
+        self.leading: TokenList = []
+        self.block_implementations: dict[str, Type[Block]] = {}
         for cls in Block.__subclasses__():
             self.block_implementations[cls.__name__.upper()] = cls
             for scls in cls.__subclasses__():
@@ -134,10 +136,12 @@ class Nexus(list):
         list.__init__(self, s)
 
     @classmethod
-    def from_file(cls,
-                  p: typing.Union[str, pathlib.Path],
-                  config: typing.Optional[Config] = None,
-                  **kw) -> typing.Optional['Nexus']:
+    def from_file(
+            cls,
+            p: Union[str, pathlib.Path],
+            config: Optional[Config] = None,
+            **kw,
+    ) -> Optional['Nexus']:
         """
         Instantiate a `Nexus` object from the contents of a NEXUS file.
 
@@ -163,7 +167,7 @@ class Nexus(list):
         return None  # pragma: no cover
 
     @classmethod
-    def from_blocks(cls, *blocks) -> 'Nexus':
+    def from_blocks(cls, *blocks: Block) -> 'Nexus':
         """Initializes a `Nexus` instance from a list of blocks."""
         res = cls()
         for block in blocks:
@@ -171,7 +175,7 @@ class Nexus(list):
         return res
 
     @property
-    def blocks(self) -> typing.Dict[str, typing.List[Block]]:
+    def blocks(self) -> dict[str, list[Block]]:
         """
         A `dict` mapping uppercase block names to lists of instances of these blocks ordered as they
         appear in the NEXUS content.
@@ -184,7 +188,7 @@ class Nexus(list):
             res[block.name].append(block)
         return res
 
-    def __getattribute__(self, name):
+    def __getattribute__(self, name: str) -> Any:
         """
         NEXUS does not make any prescriptions regarding how many blocks with the same name may
         exist in a file. Thus, the primary way to access blocks is by looking up the list of blocks
@@ -208,7 +212,7 @@ class Nexus(list):
                 return None
         return list.__getattribute__(self, name)
 
-    def __str__(self):
+    def __str__(self) -> str:
         """
         The string representation of a `Nexus` object is just its NEXUS content.
 
@@ -226,7 +230,7 @@ class Nexus(list):
             + ''.join(''.join(str(t) for t in cmd) for cmd in self) \
             + ''.join(str(t) for t in self.trailing_whitespace)
 
-    def to_file(self, p: typing.Union[str, pathlib.Path]) -> None:
+    def to_file(self, p: Union[str, pathlib.Path]) -> None:
         """
         Write the NEXUS content of a `Nexus` object to a file.
         """
@@ -235,7 +239,7 @@ class Nexus(list):
         text += '\n' if not text.endswith('\n') else ''
         p.write_text(text, encoding=self.cfg.encoding)
 
-    def iter_comments(self) -> typing.Generator[Token, None, None]:
+    def iter_comments(self) -> TokenGenerator:
         """Generator for all comments in the NEXUS file."""
         yield from (t for t in self.leading if t.type == TokenType.COMMENT)
         for cmd in self:
@@ -243,7 +247,7 @@ class Nexus(list):
         yield from (t for t in self.trailing_whitespace if t.type == TokenType.COMMENT)
 
     @property
-    def comments(self) -> typing.List[str]:
+    def comments(self) -> list[str]:
         """
         Comments may appear anywhere in a NEXUS file. Thus, they are the only kind of tokens not
         really grouped into a command.
@@ -261,9 +265,9 @@ class Nexus(list):
         """
         return [t.text for t in self.iter_comments()]
 
-    def iter_blocks(self) -> typing.Generator[Block, None, None]:
+    def iter_blocks(self) -> Generator[Block, None, None]:
         """A generator for the blocks in the NEXUS file."""
-        block: typing.List[Command] = []
+        block: list[Command] = []
         for command in itertools.dropwhile(lambda c: not c.is_beginblock, self):
             if command.is_endblock:
                 assert block
@@ -277,7 +281,7 @@ class Nexus(list):
             elif block:
                 block.append(command)
 
-    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
+    def validate(self, log: Optional[logging.Logger] = None) -> bool:
         """Validates the NEXUS file."""
         valid = True
         if any(t.type not in {TokenType.WHITESPACE, TokenType.COMMENT} for t in self.leading):
@@ -295,10 +299,8 @@ class Nexus(list):
             log_or_raise('Invalid token in text after the last command', log=log)
         return valid
 
-    def get_numbers(self, object_name: str, items) -> typing.List[str]:
-        """
-        Determine object numbers suitable for inclusion in a set spec.
-        """
+    def get_numbers(self, object_name: str, items: Container[str]) -> list[str]:
+        """Determine object numbers suitable for inclusion in a set spec."""
         if object_name == 'TAXON':
             return [str(i + 1) for i, tax in enumerate(self.taxa)
                     if (tax in items) or (str(i + 1) in items)]
@@ -312,11 +314,8 @@ class Nexus(list):
         raise NotImplementedError(object_name)  # pragma: no cover
 
     def resolve_set_spec(
-            self,
-            object_name: str,
-            spec: typing.List[str],
-            chars: typing.Optional[typing.List[str]] = None
-    ) -> typing.Optional[typing.List[str]]:
+            self, object_name: str, spec: list[str], chars: Optional[list[str]] = None
+    ) -> Optional[Union[list[str], dict[str, list[str]]]]:
         """
         Resolve a set spec to a list of included items, specified by label or number.
 
@@ -324,24 +323,24 @@ class Nexus(list):
         :param spec:
         :return:
         """
-        def numbers(maxn: int) -> typing.List[int]:
+        def numbers(maxn: int) -> list[int]:
             """Turns a set spec into a list of item numbers."""
             res = []
             start, in_range = None, False
             for token in spec:
                 if not start:
                     start = token
-                else:
-                    if token == '-':
-                        in_range = True
-                    else:
-                        if in_range:  # Figure out the end of the range and append items.
-                            res.extend(list(
-                                range(int(start), int(token if token != '.' else maxn) + 1)))
-                            in_range, start = False, None
-                        else:
-                            res.append(int(start))
-                            start = token
+                    continue
+                if token == '-':
+                    in_range = True
+                    continue
+                if in_range:  # Figure out the end of the range and append items.
+                    res.extend(list(range(int(start), int(token if token != '.' else maxn) + 1)))
+                    in_range, start = False, None
+                    continue
+                # No range specification detected. Just append `start` as single number.
+                res.append(int(start))
+                start = token
             if start:
                 res.append(int(start))
             return res
@@ -370,7 +369,7 @@ class Nexus(list):
             block = self.CHARACTERS or self.DATA
             if block:
                 _, slabels = block.get_charstatelabels()
-                res = collections.defaultdict(list)
+                res: dict[str, list[str]] = collections.defaultdict(list)
                 # need to transpose
                 for char, states in slabels.items():
                     if char in chars:
@@ -400,9 +399,7 @@ class Nexus(list):
         for cmd in reversed(block):
             self.insert(0, cmd)
 
-    def replace_block(self,
-                      old: Block,
-                      new: typing.Union[Block, typing.List[typing.Tuple[str, str]]]) -> None:
+    def replace_block(self, old: Block, new: Union[Block, list[tuple[str, str]]]) -> None:
         """
         Replace a block.
 
@@ -437,7 +434,7 @@ class Nexus(list):
 
     # Shortcuts:
     @property
-    def characters(self) -> typing.Union[Block, None]:
+    def characters(self) -> Union[Block, None]:
         """
         Shortcut to get around the DATA/CHARACTERS ambiguity.
 
@@ -451,7 +448,7 @@ class Nexus(list):
         return self.DATA or self.CHARACTERS
 
     @property
-    def taxa(self) -> typing.Optional[typing.List[str]]:
+    def taxa(self) -> Optional[list[str]]:
         """
         Shortcut to retrieve the list of taxa a NEXUS file provides data on.
 

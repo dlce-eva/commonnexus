@@ -4,14 +4,14 @@ Utility functions used to implement `commonnexus` subcommands.
 import re
 import sys
 import enum
-import typing
+from typing import Union, Callable
 import pathlib
 import argparse
 
 from commonnexus import Nexus
 
 NEXUS = re.compile(r'(?:^|(?<=;|\s))(#nexus)', re.IGNORECASE | re.MULTILINE)
-LambdaOrTupleType = typing.Union[typing.Tuple[str, ...], typing.Callable[[str], str]]
+LambdaOrTupleType = Union[tuple[str, ...], Callable[[str], str]]
 
 
 class Operation(enum.Enum):
@@ -41,7 +41,7 @@ class NexusType:  # pylint: disable=too-few-public-methods
     def __init__(self, many: bool = False):
         self._many = many
 
-    def __call__(self, string):
+    def __call__(self, string) -> Union[Nexus, list[Nexus]]:
         if pathlib.Path(string).exists():
             nex = Nexus.from_file(string)
             return [nex] if self._many else nex
@@ -57,7 +57,7 @@ class NexusType:  # pylint: disable=too-few-public-methods
         return Nexus(string)
 
 
-def add_nexus(parser, many=False):
+def add_nexus(parser: argparse.ArgumentParser, many=False) -> None:
     """
     Adds (a) positional argument(s) `nexus` to the argument parser.
 
@@ -116,7 +116,7 @@ def add_rename(parser: argparse.ArgumentParser, what: str) -> None:
         default=None)
 
 
-def list_of_ranges(dstring: str) -> typing.List[int]:
+def list_of_ranges(dstring: str) -> list[int]:
     """
     Converts a comma-separated list of 1-based ranges into a list of 1-based indices.
 

@@ -1,6 +1,11 @@
 # Changes
 
 
+## Unreleased
+
+- Drop python 3.8 compatibility.
+
+
 ## [v.1.9.3]
 
 - Addressed issue with global annotations for trees being incorrectly parsed.

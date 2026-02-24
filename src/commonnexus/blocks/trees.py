@@ -1,7 +1,7 @@
 """
 Functionality related to reading and writing NEXUS TREES blocks.
 """
-import typing
+from typing import TYPE_CHECKING, Union, Optional
 import logging
 import warnings
 import functools
@@ -13,10 +13,10 @@ from commonnexus.util import log_or_raise
 from commonnexus.tokenizer import TokenType, iter_words_and_punctuation, Word, Token, TokenOrString
 from .base import Payload, Block
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
 
-TreeSpec = typing.Tuple[str, typing.Union[str, newick.Node], typing.Union[None, bool]]
+TreeSpec = tuple[str, Union[str, newick.Node], Union[None, bool]]
 
 
 class Translate(Payload):
@@ -52,7 +52,7 @@ class Translate(Payload):
     can be referred to in a tree description as 1, Scarabaeus, or beetle. Thus, the three trees are
     identical.
 
-    :ivar typing.Dict[str, str] mapping: The mapping of tokens used in the tree description to \
+    :ivar dict[str, str] mapping: The mapping of tokens used in the tree description to \
     valid taxon names.
 
     .. note::
@@ -63,7 +63,7 @@ class Translate(Payload):
     def __init__(self, tokens, nexus=None):
         super().__init__(tokens, nexus=nexus)
         # get a word, and another word, then look for comma.
-        self.mapping: typing.OrderedDict[str, TokenOrString] = collections.OrderedDict()
+        self.mapping: collections.OrderedDict[str, TokenOrString] = collections.OrderedDict()
         key, value = None, None
         for t in iter_words_and_punctuation(self._tokens, nexus=nexus):
             if not key:
@@ -154,7 +154,7 @@ class Tree(Payload):
         ['&R', '&clockrate']
 
     :ivar str name: The name of the tree.
-    :ivar typing.Union[bool, None] rooted: Flag indicating whether the tree is rooted (or `None` \
+    :ivar Union[bool, None] rooted: Flag indicating whether the tree is rooted (or `None` \
     if no information is given)
     :ivar newick.Node newick: The tree description as `newick.Node`.
 
@@ -211,10 +211,7 @@ class Tree(Payload):
 
     @staticmethod
     def format(  # pylint: disable=arguments-differ
-            name: str,
-            newick_node: newick.Node,
-            rooted: typing.Optional[bool] = None,
-    ) -> str:
+            name: str, newick_node: newick.Node, rooted: Optional[bool] = None) -> str:
         """
         Returns a representation of a tree as NEXUS string, suitable as payload of a ``TREE``
         command.
@@ -223,7 +220,7 @@ class Tree(Payload):
         return f'{Word(name).as_nexus_string()} = {rooting_info}{newick_node.newick}'
 
     @property
-    def rooted(self) -> typing.Union[None, bool]:
+    def rooted(self) -> Union[None, bool]:
         """
         Whether the tree is rooted (`True`) or not (`False`) or no information is given (`None`).
         """
@@ -331,14 +328,14 @@ class Trees(Block):
     __commands__ = [Translate, Tree]
 
     @property
-    def trees(self) -> typing.List[Tree]:
+    def trees(self) -> list[Tree]:
         """
         Since TREE is one of the few NEXUS commands which may appear multiple times per block, we
         provide a shortcut to this list.
         """
         return self.commands['TREE']
 
-    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
+    def validate(self, log: Optional[logging.Logger] = None) -> bool:
         super().validate(log=log)
         valid, with_translate, tree_seen = True, False, False
         for cmd in self[1:-1]:
@@ -358,7 +355,7 @@ class Trees(Block):
         return valid
 
     @functools.cached_property
-    def translate_mapping(self) -> typing.Dict[str, TokenOrString]:
+    def translate_mapping(self) -> dict[str, TokenOrString]:
         """Maps taxa IDs used in trees to taxon labels."""
         mapping = {}
         if 'TAXA' in self.linked_blocks:
@@ -370,7 +367,7 @@ class Trees(Block):
             mapping.update(self.TRANSLATE.mapping)
         return mapping
 
-    def translate(self, tree: typing.Union[Tree, newick.Node]) -> newick.Node:
+    def translate(self, tree: Union[Tree, newick.Node]) -> newick.Node:
         """
         Translate a tree according to the mapping TREES TRANSLATE.
 
@@ -406,13 +403,13 @@ class Trees(Block):
     def from_data(  # pylint: disable=too-many-arguments
             cls,
             *tree_specs: TreeSpec,
-            nexus: typing.Optional["Nexus"] = None,
-            comment: typing.Optional[str] = None,
+            nexus: Optional["Nexus"] = None,
+            comment: Optional[str] = None,
             lowercase_command: bool = False,
-            TITLE: typing.Optional[str] = None,
-            LINK: typing.Optional[str] = None,
-            ID: typing.Optional[str] = None,
-            **translate_labels: typing.Dict[str, str],
+            TITLE: Optional[str] = None,
+            LINK: Optional[str] = None,
+            ID: Optional[str] = None,
+            **translate_labels: dict[str, str],
     ) -> 'Trees':
         """
         Create a TREES block from a list of tree specifications.

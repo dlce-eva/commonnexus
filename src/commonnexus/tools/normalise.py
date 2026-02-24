@@ -17,8 +17,9 @@ In addition, after normalisation, the following assumptions hold:
 - The ";" terminating MATRIX commands is on a separate line, allowing more simplistic parsing
   of matrix rows.
 """
-import typing
+from typing import Optional, Callable, Union
 import collections
+from collections.abc import Container
 
 import newick
 
@@ -27,13 +28,13 @@ from commonnexus.blocks.characters import Data
 from commonnexus.blocks import Taxa, Distances, Characters, Trees
 
 
-def normalise(nexus: Nexus,
-              data_to_characters: bool = False,
-              strip_comments: bool = False,
-              remove_taxa: typing.Optional[typing.Container[str]] = None,
-              rename_taxa: typing.Optional[
-                  typing.Union[typing.Callable[[str], str], typing.Dict[str, str]]] = None,
-              ) -> Nexus:
+def normalise(
+        nexus: Nexus,
+        data_to_characters: bool = False,
+        strip_comments: bool = False,
+        remove_taxa: Optional[Container[str]] = None,
+        rename_taxa: Optional[Union[Callable[[str], str], dict[str, str]]] = None,
+) -> Nexus:
     """
     Normalise a `Nexus` object as described above.
 

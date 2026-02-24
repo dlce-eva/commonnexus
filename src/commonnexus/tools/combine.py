@@ -10,7 +10,6 @@ The following blocks can be handled:
 
 """
 import collections
-import typing
 
 from commonnexus import Nexus
 from commonnexus.blocks import Taxa, Trees, Characters
@@ -72,8 +71,8 @@ def combine(*nexus: Nexus, **kw) -> Nexus:
 
 
 def merged_matrix(
-        matrices: typing.OrderedDict[int, StateMatrix],
-        taxa: typing.List[str],
+        matrices: collections.OrderedDict[int, StateMatrix],
+        taxa: list[str],
 ) -> StateMatrix:
     """Merge matrices."""
     matrix = collections.OrderedDict()

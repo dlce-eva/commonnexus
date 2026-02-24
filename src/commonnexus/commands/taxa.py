@@ -2,7 +2,6 @@
 Manipulate the list of TAXA used in a NEXUS file.
 """
 import collections
-import typing
 
 from commonnexus.cli_util import add_nexus, add_flag, ParserError, add_rename
 from commonnexus.blocks import Data, Characters, Trees, Taxa, Distances
@@ -199,7 +198,7 @@ def check(nexus, taxa, log):  # pylint: disable=missing-function-docstring
                 log.warning('Invalid taxa labels as inner node name in TREE.')
 
 
-def describe(what: str, nexus, taxa: typing.Dict):  # pylint: disable=missing-function-docstring
+def describe(what: str, nexus, taxa: dict):  # pylint: disable=missing-function-docstring
     for num, name in taxa.items():
         if what in (num, name):
             break

@@ -1,12 +1,14 @@
 """
 Functionality related to reading and writing NEXUS DISTANCES blocks.
 """
-import typing
+import enum
+from typing import TYPE_CHECKING, Union, Optional
 import decimal
 import warnings
 import itertools
 import collections
 import dataclasses
+from collections.abc import Iterable
 
 from commonnexus.tokenizer import iter_words_and_punctuation, iter_lines, Word, Token, TokenOrString
 from commonnexus.util import do_until_stopiteration
@@ -14,12 +16,13 @@ from .base import Block, Payload, PayloadTokensType
 from . import characters
 from . import taxa
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus import Nexus
 
-ODict = typing.OrderedDict
-DistanceType = typing.Union[None, decimal.Decimal]
+ODict = collections.OrderedDict
+DistanceType = Union[None, decimal.Decimal]
 DistanceMatrix = ODict[str, ODict[str, DistanceType]]
+Number = Union[float, int, decimal.Decimal]
 
 
 class Dimensions(characters.Dimensions):
@@ -34,7 +37,7 @@ class Dimensions(characters.Dimensions):
     NEWTAXA, if present, must be appear before the NTAX subcommand.
 
     :ivar bool newtaxa:
-    :ivar typing.Optional[int] nchar:
+    :ivar Optional[int] nchar:
     :ivar int ntax:
     """
     def check(self) -> None:
@@ -42,6 +45,13 @@ class Dimensions(characters.Dimensions):
 
     def format(self, *args, **kw):
         raise NotImplementedError()  # pragma: no cover
+
+
+class Triangle(enum.Enum):
+    """Valid triangle specifications for distance matrices."""
+    LOWER = enum.auto()
+    UPPER = enum.auto()
+    BOTH = enum.auto()
 
 
 class Format(Payload):
@@ -112,14 +122,11 @@ class Format(Payload):
     """
     def __init__(self, tokens: PayloadTokensType, nexus: 'Nexus' = None) -> None:
         super().__init__(tokens, nexus=nexus)
-        self.missing = '?'
-        self.labels = True
-        self.interleave = False
-        self.diagonal = True
-        self.triangle = 'LOWER'
-
-        if tokens is None:
-            return
+        self.missing: str = '?'
+        self.labels: bool = True
+        self.interleave: bool = False
+        self.diagonal: bool = True
+        self.triangle: Triangle = Triangle.LOWER
 
         words = iter_words_and_punctuation(self._tokens, nexus=nexus)
 
@@ -134,29 +141,25 @@ class Format(Payload):
             subcommand = None
             if isinstance(word, str):
                 subcommand = word.upper()
-            if subcommand in ['TRIANGLE', 'MISSING']:
-                setattr(self, subcommand.lower(), word_after_equals())
+            if subcommand == 'TRIANGLE':
+                self.triangle = getattr(Triangle, word_after_equals().upper())
+            if subcommand == 'MISSING':
+                self.missing = word_after_equals()
             elif subcommand in ['INTERLEAVE']:
                 setattr(self, subcommand.lower(), True)
             elif subcommand in ['NOLABELS', 'LABELS', 'NODIAGONAL', 'DIAGONAL']:
                 setattr(self, subcommand.replace('NO', '').lower(), 'NO' not in subcommand)
 
         do_until_stopiteration(consume)
-        self.triangle = self.triangle.upper()
 
-    def required_cols(
-            self,
-            rows: ODict,
-            ntax: int,
-            row_index: typing.Optional[int] = None,
-    ) -> int:
+    def required_cols(self, rows: ODict, ntax: int, row_index: Optional[int] = None) -> int:
         """
         The number of required entries for a distance matrix row depends on TRIANGLE, DIAGONAL and
         the row index.
         """
-        if self.triangle == 'BOTH':  # Each row has entries for all taxa.
+        if self.triangle == Triangle.BOTH:  # Each row has entries for all taxa.
             ncols = ntax
-        elif self.triangle == 'LOWER':  # Each row has one more entry than the previous one.
+        elif self.triangle == Triangle.LOWER:  # Each row has one more entry than the previous one.
             if row_index is not None:
                 ncols = row_index
             else:
@@ -205,8 +208,8 @@ class Matrix(Payload):
 class DistanceMatrixRow:
     """Helper class for parsing NEXUS distance matrix lines."""
     # A row label may be `None`, a 1-based row index or a string label.
-    label: typing.Union[None, int, str] = None
-    entries: typing.List[DistanceType] = dataclasses.field(default_factory=list)
+    label: Union[None, int, str] = None
+    entries: list[DistanceType] = dataclasses.field(default_factory=list)
 
 
 class Distances(Block):
@@ -238,9 +241,9 @@ class Distances(Block):
     @property
     def matrix_format(self) -> Format:
         """The FORMAT command to use with this block."""
-        return self.FORMAT or Format(None)
+        return self.FORMAT or Format('')
 
-    def _get_ntax_and_labels(self) -> typing.Tuple[int, taxa.TaxlabelsType]:
+    def _get_ntax_and_labels(self) -> tuple[int, taxa.TaxlabelsType]:
         ntax, taxlabels = None, collections.OrderedDict()
         if self.DIMENSIONS:
             ntax = self.DIMENSIONS.ntax
@@ -289,13 +292,13 @@ class Distances(Block):
 
         # We pad the result rows with None columns on the left as necessary, to make lookup by
         # column index work.
-        if self.matrix_format.triangle == 'UPPER':
+        if self.matrix_format.triangle == Triangle.UPPER:
             for i, key in enumerate(raw):
                 raw[key] = [None] * (i if self.matrix_format.diagonal else i + 1) + raw[key]
             if self.matrix_format.diagonal is False and self.matrix_format.labels is False:
                 assert (ntax) not in raw, str(raw.keys())
                 raw[ntax] = [None]
-        elif self.matrix_format.triangle == 'BOTH' and not self.matrix_format.diagonal:
+        elif self.matrix_format.triangle == Triangle.BOTH and not self.matrix_format.diagonal:
             for i, key in enumerate(raw):
                 raw[key].insert(i, None)
 
@@ -316,7 +319,7 @@ class Distances(Block):
                 (i, label) for i, label in enumerate(taxlabels.values(), start=1))
 
         # Now we replace the row-index keys in res with string labels.
-        raw = {taxlabels.get(k, k): v for k, v in raw.items()}
+        raw = ODict((taxlabels.get(k, k), v) for k, v in raw.items())
         assert set(raw.keys()).issubset(taxlabels.values()), "Unmatched taxa in DISTANCES matrix."
 
         # Now populate a complete matrix with the data read from the tokens:
@@ -324,7 +327,7 @@ class Distances(Block):
 
     def _populated_matrix(
             self,
-            res: ODict[TokenOrString, typing.List[DistanceType]],
+            res: ODict[TokenOrString, list[DistanceType]],
             taxlabels: taxa.TaxlabelsType,
     ) -> DistanceMatrix:
         # Now populate a complete matrix with the data read from the tokens:
@@ -335,11 +338,12 @@ class Distances(Block):
             if na == nb and self.matrix_format.diagonal is False:
                 matrix[la][lb] = 0
                 continue
-            if self.matrix_format.triangle == 'BOTH':  # We might have assymetric distances.
+            if self.matrix_format.triangle == Triangle.BOTH:  # We might have assymetric distances.
                 matrix[la][lb] = res[la][nb - 1]
                 matrix[lb][la] = res[lb][na - 1]
             else:
-                val = res[la][nb - 1] if self.matrix_format.triangle == 'UPPER' else res[lb][na - 1]
+                val = res[la][nb - 1] if self.matrix_format.triangle == Triangle.UPPER \
+                    else res[lb][na - 1]
                 if nb != na:
                     matrix[la][lb] = matrix[lb][la] = val
                 else:
@@ -348,10 +352,10 @@ class Distances(Block):
 
     def _parse_matrix(
             self,
-            lines: typing.List[typing.Iterable[Token]],
+            lines: list[Iterable[Token]],
             ntax: int,
             taxlabels: taxa.TaxlabelsType,
-    ) -> ODict[int, typing.List[DistanceType]]:
+    ) -> ODict[int, list[DistanceType]]:
         res = collections.OrderedDict()
         row = DistanceMatrixRow()
         # Now read the matrix data:
@@ -377,7 +381,7 @@ class Distances(Block):
     def _set_label_for_interleaved_matrix_row(
             self,
             row: DistanceMatrixRow,
-            res: ODict[int, typing.List[DistanceType]],
+            res: ODict[int, list[DistanceType]],
             ntax: int,
             taxlabels: taxa.TaxlabelsType) -> None:
         """Sets the label attribute of row, if a matching label is found."""
@@ -397,9 +401,9 @@ class Distances(Block):
 
     def _parse_matrix_line(
             self,
-            line: typing.Iterable[Token],
+            line: Iterable[Token],
             row: DistanceMatrixRow,
-            res: ODict[int, typing.List[DistanceType]],
+            res: ODict[int, list[DistanceType]],
             ntax: int,
     ) -> DistanceMatrixRow:
         """Parse a single line of a NEXUS DISTANCE matrix."""
@@ -412,7 +416,7 @@ class Distances(Block):
                     row.label = t
                     if (not self.matrix_format.diagonal
                             and not self.matrix_format.interleave
-                            and self.matrix_format.triangle == 'LOWER'
+                            and self.matrix_format.triangle == Triangle.LOWER
                             and not res):
                         # We're done with this row after the label.
                         res[row.label] = []
@@ -432,15 +436,14 @@ class Distances(Block):
     @classmethod
     def from_data(  # pylint: disable=too-many-arguments,arguments-differ
             cls,
-            matrix: typing.OrderedDict[str, typing.OrderedDict[
-                str, typing.Union[None, float, int, decimal.Decimal]]],
+            matrix: ODict[str, ODict[str, Optional[Number]]],
             taxlabels: bool = False,
-            comment: typing.Optional[str] = None,
-            nexus: typing.Optional["Nexus"] = None,
+            comment: Optional[str] = None,
+            nexus: Optional["Nexus"] = None,
             *,
-            TITLE: typing.Optional[str] = None,
-            ID: typing.Optional[str] = None,
-            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+            TITLE: Optional[str] = None,
+            ID: Optional[str] = None,
+            LINK: Optional[Union[str, tuple[str, str]]] = None,
     ) -> 'Block':
         """
         Create a DISTANCES block from the distance matrix `matrix`.

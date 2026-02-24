@@ -3,7 +3,7 @@ import warnings
 import pytest
 
 from commonnexus import Nexus, Config
-from commonnexus.blocks.characters import GAP, Characters, apply_to_state
+from commonnexus.blocks.characters import GAP, Characters, apply_to_state, GapMode
 
 
 @pytest.mark.parametrize(
@@ -270,7 +270,7 @@ def test_Characters_validate(nexus):
 
 def test_Data_with_Options(nexus):
     nex = nexus(DATA="DIMENSIONS NCHAR=1; OPTIONS GAPMODE=missing; MATRIX t1 1;")
-    assert nex.characters.OPTIONS.gapmode == 'missing'
+    assert nex.characters.OPTIONS.gapmode == GapMode.missing
 
 
 def test_Data_with_duplicate_charlabels(nexus):

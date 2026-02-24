@@ -8,7 +8,7 @@ import collections
 import dataclasses
 
 from commonnexus import Nexus
-from commonnexus.blocks.characters import Characters, GAP
+from commonnexus.blocks.characters import Characters, GAP, Datatype
 from commonnexus.tools.matrix import CharacterMatrix, DropSpec, DropChars
 from commonnexus.tools.combine import combine
 from commonnexus.cli_util import add_nexus, add_flag, validate_operations, list_of_ranges, Operation
@@ -58,7 +58,7 @@ def run(args):  # pylint: disable=missing-function-docstring
     if args.binarise:
         if args.nexus.characters.FORMAT:  # pragma: no cover
             assert args.nexus.characters.FORMAT.datatype is None or \
-                args.nexus.characters.FORMAT.datatype == 'STANDARD'
+                args.nexus.characters.FORMAT.datatype == Datatype.STANDARD
         _, statelabels = args.nexus.characters.get_charstatelabels()
         new = CharacterMatrix.binarised(args.nexus.characters.get_matrix(), statelabels=statelabels)
     elif args.multistatise:

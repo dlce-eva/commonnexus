@@ -14,15 +14,15 @@ Punctuation
     considered punctuation except where it is the minus sign in a negative number.
 """
 import enum
+from typing import Union
 import itertools
 import dataclasses
+from collections.abc import Generator, Iterable, Iterator
 
 __all__ = [
     'TokenType', 'Token', 'iter_tokens', 'get_name', 'iter_words_and_punctuation', 'Word',
     'iter_delimited', 'iter_lines', 'word_after_equals', 'iter_key_value_pairs',
-    'TokenOrString', 'TokenGenerator']
-
-import typing
+    'TokenOrString', 'TokenGenerator', 'TokenList', 'get_tokens']
 
 QUOTE = "'"
 COMMENT = {'[': 1, ']': -1}
@@ -57,8 +57,8 @@ class Token:
     @classmethod
     def from_text(
             cls,
-            tokens: typing.List[str],
-            type: typing.Union[TokenType, None] = None,  # pylint: disable=redefined-builtin
+            tokens: list[str],
+            type: Union[TokenType, None] = None,  # pylint: disable=redefined-builtin
     ) -> 'Token':
         """Create a token form a list of characters."""
         return cls(
@@ -93,11 +93,12 @@ class Token:
         return self.text
 
 
-TokenOrString = typing.Union[str, Token]
-TokenGenerator = typing.Generator[TokenOrString, None, None]
+TokenOrString = Union[str, Token]
+TokenGenerator = Generator[TokenOrString, None, None]
+TokenList = list[Token]
 
 
-def _get_comment(s_iter: typing.Iterator[str]) -> typing.Tuple[str, typing.List[str]]:
+def _get_comment(s_iter: Iterator[str]) -> tuple[str, list[str]]:
     """Read the next comment from s_iter."""
     token = []
     commentlevel = 1
@@ -112,10 +113,7 @@ def _get_comment(s_iter: typing.Iterator[str]) -> typing.Tuple[str, typing.List[
         token.append(c)
 
 
-def _get_quoted(
-        s_iter: typing.Iterator[str],
-        lookahead: typing.Union[str, None]
-) -> typing.Tuple[str, str, typing.List[str]]:
+def _get_quoted(s_iter: Iterator[str], lookahead: Union[str, None]) -> tuple[str, str, list[str]]:
     """Read up to the next unquoted quote from s_iter."""
     doublequote = False
     token = []
@@ -140,7 +138,7 @@ def _get_quoted(
                 return c, lookahead, token
 
 
-def iter_tokens(s_iter: typing.Iterator[str]) -> TokenGenerator:
+def iter_tokens(s_iter: Iterator[str]) -> TokenGenerator:
     """Turn iterator of characters into tokens."""
     token, lookahead = [], None
 
@@ -193,7 +191,12 @@ def iter_tokens(s_iter: typing.Iterator[str]) -> TokenGenerator:
         yield Token.from_text(token)
 
 
-def get_name(tokens: typing.Iterable[Token]) -> str:
+def get_tokens(s_: str) -> TokenList:
+    """Turn a string into a list of tokens."""
+    return list(iter_tokens(iter(s_)))
+
+
+def get_name(tokens: Iterable[Token]) -> str:
     """
     Returns the first word in tokens.
 
@@ -237,10 +240,7 @@ class Word(str):
         return hash(str(self))
 
 
-def get_allowed_punctuation(
-        allow_punctuation_in_word: typing.Union[str, None],
-        nexus,
-) -> str:
+def get_allowed_punctuation(allow_punctuation_in_word: Union[str, None], nexus) -> str:
     """Aggregate all punctuation which may appear in words according to NEXUS spec of config."""
     allow_punctuation_in_word = allow_punctuation_in_word or ''
     if nexus is not None:
@@ -252,8 +252,8 @@ def get_allowed_punctuation(
 
 
 def iter_words_and_punctuation(
-        tokens: typing.Iterable[Token],
-        allow_punctuation_in_word: typing.Union[str, None] = None,
+        tokens: Iterable[Token],
+        allow_punctuation_in_word: Union[str, None] = None,
         nexus=None
 ) -> TokenGenerator:
     """
@@ -313,53 +313,54 @@ def iter_words_and_punctuation(
         yield Word(word)
 
 
+@dataclasses.dataclass
+class PairState:
+    """Records the state of parsing one key-value pair."""
+    key: str = None
+    equals_seen: bool = False
+    value: list[Union[str, Token]] = dataclasses.field(default_factory=list)
+    in_braces: bool = False
+
+    def feed(self, token) -> Union[None, tuple[str, list[str]]]:
+        """Consume a token and update the state accordingly."""
+        if self.key is None:  # We first need to find a key ...
+            assert isinstance(token, str)
+            self.key = token
+            return None
+
+        if not self.equals_seen:  # ... then the equals sign ...
+            assert isinstance(token, Token) and token.text == '='
+            self.equals_seen = True
+            return None
+
+        if isinstance(token, Token):
+            if token.text == '(':
+                assert not self.value
+                self.in_braces = True
+            elif token.text == ')':
+                assert self.in_braces, 'No corresponding left brace'
+                return (self.key, self.value)
+            else:
+                assert self.in_braces, 'No left brace'
+                self.value.append(token.text)
+        else:
+            if self.in_braces:
+                self.value.append(token)
+            else:
+                assert not self.value, 'Value already encountered'
+                return self.key, [token]
+        return None
+
+
 def iter_key_value_pairs(
-        tokens: typing.Iterable[Token],
+        tokens: Iterable[Token],
         allow_punctuation_in_word=None
-) -> typing.Generator[typing.Tuple[str, typing.List[TokenOrString]], None, None]:
+) -> Generator[tuple[str, list[str]], None, None]:
     """
     :param tokens:
     :param allow_punctuation_in_word:
     :return:
     """
-    @dataclasses.dataclass
-    class PairState:
-        """Records the state of parsing one key-value pair."""
-        key: str = None
-        equals_seen: bool = False
-        value: typing.List[typing.Union[str, Token]] = dataclasses.field(default_factory=list)
-        in_braces: bool = False
-
-        def feed(self, token) -> typing.Union[None, typing.Tuple[str, typing.List[str]]]:
-            """Consume a token and update the state accordingly."""
-            if self.key is None:  # We first need to find a key ...
-                assert isinstance(token, str)
-                self.key = token
-                return None
-
-            if not self.equals_seen:  # ... then the equals sign ...
-                assert isinstance(token, Token) and token.text == '='
-                self.equals_seen = True
-                return None
-
-            if isinstance(token, Token):
-                if token.text == '(':
-                    assert not self.value
-                    self.in_braces = True
-                elif token.text == ')':
-                    assert self.in_braces, 'No corresponding left brace'
-                    return (self.key, self.value)
-                else:
-                    assert self.in_braces, 'No left brace'
-                    self.value.append(token.text)
-            else:
-                if self.in_braces:
-                    self.value.append(token)
-                else:
-                    assert not self.value, 'Value already encountered'
-                    return self.key, [token]
-            return None
-
     #
     # FIXME: need to pass nexus to iter_words_and_punctuation  # pylint: disable=fixme
     #
@@ -373,7 +374,7 @@ def iter_key_value_pairs(
         continue
 
 
-def word_after_equals(words_and_punctuation: typing.Iterator[TokenOrString]) -> str:
+def word_after_equals(words_and_punctuation: Iterator[TokenOrString]) -> str:
     """Return the first word token after an equals sign."""
     n = next(words_and_punctuation)
     assert n.text == '='
@@ -381,7 +382,7 @@ def word_after_equals(words_and_punctuation: typing.Iterator[TokenOrString]) -> 
     return res if isinstance(res, str) else res.text
 
 
-def iter_lines(tokens: typing.Iterable[Token]) -> typing.Generator[typing.List[Token], None, None]:
+def iter_lines(tokens: Iterable[Token]) -> Generator[TokenList, None, None]:
     """Generates lines, i.e. lists of tokens separated by newline tokens in the input."""
     line = []
     for t in tokens:
@@ -397,8 +398,8 @@ def iter_lines(tokens: typing.Iterable[Token]) -> typing.Generator[typing.List[T
 
 
 def iter_delimited(
-        start: typing.Union[str, None],
-        words_and_punctuation: typing.Iterator[Token],
+        start: Union[str, None],
+        words_and_punctuation: Iterator[Token],
         delimiter='"',
         allow_single_word=False,
 ) -> TokenGenerator:

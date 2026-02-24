@@ -1,11 +1,11 @@
 """
 Utility functions
 """
-import typing
+from typing import Optional
 import logging
 
 
-def log_or_raise(msg: str, log: typing.Optional[logging.Logger] = None, level='error') -> bool:
+def log_or_raise(msg: str, log: Optional[logging.Logger] = None, level='error') -> bool:
     """Log an error or raise a ValueError."""
     if log is None:
         raise ValueError(msg)

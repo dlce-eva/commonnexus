@@ -2,21 +2,22 @@
 Basic building blocks of NEXUS files.
 """
 import re
-import typing
+from typing import TYPE_CHECKING, Union, Type, Optional
 import logging
 import functools
 import collections
+from collections.abc import Iterable
 
 from commonnexus.tokenizer import (
-    get_name, iter_tokens, iter_words_and_punctuation, word_after_equals, TokenType, Word,
+    get_name, get_tokens, iter_words_and_punctuation, word_after_equals, TokenType, Word,
     TokenOrString,
 )
 from commonnexus.command import Command
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus import Nexus
 
-PayloadTokensType = typing.Union[str, typing.Tuple[TokenOrString]]
+PayloadTokensType = Union[str, tuple[TokenOrString]]
 
 
 class Payload:
@@ -27,10 +28,10 @@ class Payload:
 
     def __init__(self, tokens: PayloadTokensType, nexus: 'Nexus' = None) -> None:
         self.nexus = nexus
-        self._tokens = list(iter_tokens(iter(tokens))) if isinstance(tokens, str) else tokens
+        self._tokens = get_tokens(tokens) if isinstance(tokens, str) else tokens
 
     @functools.cached_property
-    def comments(self) -> typing.List[str]:
+    def comments(self) -> list[str]:
         """List of text in comments in the command payload."""
         return [t.text for t in self._tokens if t.type == TokenType.COMMENT]
 
@@ -44,7 +45,7 @@ class Payload:
         return ''.join(str(t) for t in self._tokens)
 
     @property
-    def lines(self) -> typing.List[str]:
+    def lines(self) -> list[str]:
         """List of text lines in the payload."""
         return re.split(r'[\t\r ]*\n[\t\r ]*', str(self))
 
@@ -122,29 +123,29 @@ class Block(tuple):
         return ''.join(str(cmd) for cmd in self)
 
     @functools.cached_property
-    def payload_map(self) -> typing.Dict[str, typing.Type[Payload]]:
+    def payload_map(self) -> dict[str, Type[Payload]]:
         """Maps command names to custom Payload subclasses."""
         res = {cls.__name__.upper(): cls for cls in self.__commands__}
         res.update(LINK=Link, TITLE=Title, ID=Id)
         return res
 
     @property
-    def id(self) -> typing.Union[str, None]:
+    def id(self) -> Union[str, None]:
         """A block's ID or None."""
         return self.ID.id if self.ID else None
 
     @property
-    def title(self) -> typing.Union[str, None]:
+    def title(self) -> Union[str, None]:
         """A block's TITLE or None."""
         return self.TITLE.title if self.TITLE else None
 
     @property
-    def links(self) -> typing.Dict[str, str]:
+    def links(self) -> dict[str, str]:
         """Returns a dict mapping block names to link titles."""
         return {link.block: link.title for link in self.commands['LINK']}
 
     @property
-    def linked_blocks(self) -> typing.Dict[str, 'Block']:
+    def linked_blocks(self) -> dict[str, 'Block']:
         """Returns a dict mapping link names to the linked blocks."""
         res = {}
         for name, title in self.links.items():
@@ -167,7 +168,7 @@ class Block(tuple):
         return get_name(self[0].iter_payload_tokens())
 
     @functools.cached_property
-    def commands(self) -> typing.Dict[str, typing.List[typing.Type]]:
+    def commands(self) -> dict[str, list[Type]]:
         """Returns commands in the block grouped by name."""
         res = collections.defaultdict(list)
         for cmd in self:
@@ -176,7 +177,7 @@ class Block(tuple):
                 res[cmd.name].append(cls(tuple(cmd.iter_payload_tokens()), nexus=self.nexus))
         return res
 
-    def validate(self, log: typing.Optional[logging.Logger] = None) -> bool:
+    def validate(self, log: Optional[logging.Logger] = None) -> bool:
         """Validates a block. Implementation missing!"""
         ncmds = sum(len(cmds) for cmds in self.commands.values())
         if log:
@@ -186,15 +187,15 @@ class Block(tuple):
     @classmethod
     def from_commands(  # pylint: disable=too-many-arguments
             cls,
-            commands: typing.Iterable[
-                typing.Union[str, typing.Tuple[str, str], typing.Tuple[str, str, str]]],
-            nexus: typing.Optional["Nexus"] = None,
-            name: typing.Optional[str] = None,
-            comment: typing.Optional[str] = None,
+            commands: Iterable[
+                Union[str, tuple[str, str], tuple[str, str, str]]],
+            nexus: Optional["Nexus"] = None,
+            name: Optional[str] = None,
+            comment: Optional[str] = None,
             *,
-            TITLE: typing.Optional[str] = None,
-            LINK: typing.Optional[str] = None,
-            ID: typing.Optional[str] = None,
+            TITLE: Optional[str] = None,
+            LINK: Optional[str] = None,
+            ID: Optional[str] = None,
     ) -> 'Block':
         """
         Generic factory method for blocks.

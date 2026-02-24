@@ -1,18 +1,19 @@
 """
 Functionality related to reading and writing NEXUS TAXA blocks.
 """
-import typing
+from typing import TYPE_CHECKING, Union, Optional
 import collections
+from collections.abc import Sequence
 
 from commonnexus.tokenizer import iter_words_and_punctuation, Word, TokenOrString
 from .base import Block, Payload
 
-if typing.TYPE_CHECKING:  # pragma: no cover
+if TYPE_CHECKING:  # pragma: no cover
     from commonnexus.nexus import Nexus
 
 # Taxon labels are ordered and have a 1-based index. `TaxLabelsType` maps this index to the string
 # label.
-TaxlabelsType = typing.OrderedDict[int, TokenOrString]
+TaxlabelsType = collections.OrderedDict[int, TokenOrString]
 
 
 class Dimensions(Payload):
@@ -48,7 +49,7 @@ class Taxlabels(Payload):
     Taxa may also be defined in the CHARACTERS, UNALIGNED, and DISTANCES blocks if the NEWTAXA
     token is included in the DIMENSIONS command; see the descriptions of those blocks for details.
 
-    :ivar typing.Dict[int, str] labels: Mapping of taxon number to taxon label.
+    :ivar TaxlabelsType labels: Mapping of taxon number to taxon label.
 
     The taxon number is the number of a taxon, as defined by its position in a TAXLABELS
     command. [...] For example, the third taxon listed in TAXLABELS is taxon number 3.
@@ -84,13 +85,13 @@ class Taxa(Block):
     @classmethod
     def from_data(  # pylint: disable=too-many-arguments,arguments-differ
             cls,
-            labels: typing.Sequence,
-            comment: typing.Optional[str] = None,
-            nexus: typing.Optional["Nexus"] = None,
+            labels: Sequence,
+            comment: Optional[str] = None,
+            nexus: Optional["Nexus"] = None,
             *,
-            TITLE: typing.Optional[str] = None,
-            ID: typing.Optional[str] = None,
-            LINK: typing.Optional[typing.Union[str, typing.Tuple[str, str]]] = None,
+            TITLE: Optional[str] = None,
+            ID: Optional[str] = None,
+            LINK: Optional[Union[str, tuple[str, str]]] = None,
     ) -> 'Block':
         return cls.from_commands([
             ('DIMENSIONS', f'NTAX={len(labels)}'),
