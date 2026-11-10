@@ -1,6 +1,11 @@
 # Changes
 
 
+## Unreleased
+
+- Drop py3.9 compatibility, run tests on py3.15
+
+
 ## [v2.0.0] - 2026-02-23
 
 - Drop python 3.8 compatibility.
